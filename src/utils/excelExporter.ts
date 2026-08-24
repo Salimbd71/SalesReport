@@ -275,8 +275,8 @@ function buildPivotReportSheet(
 
   // Subtitle / metadata row
   const subRow = worksheet.addRow([
-    `Report Structure: Rows = FLM > HQ | Columns = BRAND | Value = Sum of SALES_VALUE in Lac (1.00 Lac = 100,000 | 0.10 Lac = 10,000) | Grand Total: ${toLac(pivotData.grandTotal).toFixed(2)} Lac`,
-  ]);
+  `Report Structure: Rows = FLM > HQ | Columns = BRAND | Value = Sum of SALES_VALUE in Lac | Grand Total: ${toLac(pivotData.grandTotal).toFixed(2)} Lac | Note: As this file is auto-generated, minor errors may occur. Please manually verify the data if any discrepancy is suspected.`,
+]);
   subRow.height = 18;
   subRow.getCell(1).font = { italic: true, size: 10, color: { argb: '4B5563' } };
   worksheet.mergeCells(2, 1, 2, Math.max(pivotData.brands.length + 3, 5));
