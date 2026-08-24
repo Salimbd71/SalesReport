@@ -88,9 +88,9 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
         >
           Salim
         </a>
-        {" "}SO, Sun Pharma.
+        {" "}
       </div>
-
+      <div>SO, Sun Pharmaceuticals EZ Ltd.</div>
       <div>HQ - ENGLISH ROAD - AZU - DHAKA</div>
       <div>Mail - mdsalim.hossain1@sunpharma.com</div>
       <div>Mobile - 01737462871</div>
