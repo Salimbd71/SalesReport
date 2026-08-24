@@ -71,15 +71,31 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
           </div>
 
           <div className="flex items-center space-x-3 text-xs shrink-0">
-            <div className="flex items-center space-x-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span className="text-slate-300 font-medium">Developed by Salim</span>
-            </div>
-            <div className="flex items-center space-x-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
-              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-              <span className="text-slate-300 font-medium">Sun Pharma</span>
-            </div>
-          </div>
+  <div className="flex items-center space-x-2 bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
+    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+
+    <span className="text-slate-300 font-medium leading-relaxed">
+      Developed by{" "}
+      <a
+        href="https://fb.com/salim.naogaon"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-emerald-400 hover:text-emerald-300 hover:underline transition-colors"
+      >
+        Salim
+      </a>
+      {" "}SO, Sun Pharma.
+      <span className="mx-1.5 text-slate-600">|</span>
+      HQ - ENGLISH ROAD - AZU - DHAKA
+      <span className="mx-1.5 text-slate-600">|</span>
+      Mail - mdsalim.hossain1@sunpharma.com
+      <span className="mx-1.5 text-slate-600">|</span>
+      Mobile - 01737462871
+    </span>
+  </div>
+</div>
+
+          
         </div>
       </div>
 
