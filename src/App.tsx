@@ -476,8 +476,11 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500 dark:text-slate-400">
-          Sales Data Analysis & Pivot Workbench • Multi-Sheet Excel Engine • FLM/HQ VLOOKUP Automation
-        </div>
+          Declaration: This web application is an entirely unofficial, independently developed tool and is not affiliated with, endorsed by, or officially supported by Sun Pharma. However, the data files processed or used within this application are official Sun Pharma files.
+
+This application is strictly intended for use by authorized Sun Pharma employees only. The website link, application, and any data/files processed through it must not be shared, distributed, forwarded, or made accessible to anyone outside Sun Pharma.
+
+By using this application, users acknowledge and agree to comply with the confidentiality and authorized-use requirements applicable to the official data and files.</div>
       </footer>
 
     </div>
