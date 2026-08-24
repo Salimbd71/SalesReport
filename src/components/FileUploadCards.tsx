@@ -73,11 +73,11 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
           <div className="flex items-center space-x-3 text-xs shrink-0">
             <div className="flex items-center space-x-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span className="text-slate-300 font-medium">Col G: BRAND</span>
+              <span className="text-slate-300 font-medium">Developed by Salim</span>
             </div>
             <div className="flex items-center space-x-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
               <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-              <span className="text-slate-300 font-medium">10,000 = 0.10 Lac</span>
+              <span className="text-slate-300 font-medium">Sun Pharma</span>
             </div>
           </div>
         </div>
@@ -116,10 +116,10 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
 
           <div className="mt-4">
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-              1. Sales Data File
+              1. Select Sales Data File from Data Centrebd
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Multi-Sheet: <strong>Sheet 4</strong> (Product Sales) & <strong>Sheet 2</strong> (Customer Sales)
+              শর্ত: <strong>Sun Mail এর Data Centrebd এর সেলস রিপোর্ট ফাইলই আপলোড করতে হবে।</strong>
             </p>
 
             <div className="my-3 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs space-y-1 text-slate-600 dark:text-slate-300">
@@ -210,10 +210,10 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
 
           <div className="mt-4">
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-              2. Chemist List File
+              2. Chemist List File from RSM Sir
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Sheet: <strong>DHK-MYN-KH</strong> (Chemist Master)
+              শর্ত: <strong>RSM Sir এর দেওয়া নির্দিষ্ট কেমিস্ট ফাইলই আপলোড করতে হবে।</strong>
             </p>
 
             <div className="my-3 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs space-y-1 text-slate-600 dark:text-slate-300">
