@@ -474,6 +474,13 @@ export default function App() {
       </main>
 
       {/* Footer */}
+      <div class="custom-badge">
+  Designed By Salim
+</div>
+      
+
+
+      
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500 dark:text-slate-400">
           Declaration: This web application is an entirely unofficial, independently developed tool and is not affiliated with, endorsed by, or officially supported by Sun Pharma. However, the data files processed or used within this application are official Sun Pharma files.
