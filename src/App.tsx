@@ -41,6 +41,9 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+// Badge State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   // Raw file state
   const [salesRawFile, setSalesRawFile] = useState<File | null>(null);
   const [salesFileName, setSalesFileName] = useState<string>('');
@@ -474,9 +477,41 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <div class="custom-badge">
-  Designed By Salim
-</div>
+            {/* --- শুধু ফ্লোটিং ব্যাজ এবং পপ-আপ কোড --- */}
+      <div className="custom-badge" onClick={() => setIsModalOpen(true)}>
+        <span className="badge-dot"></span>
+        <span className="badge-text">Designed By Salim</span>
+      </div>
+
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-btn" onClick={() => setIsModalOpen(false)}>&times;</button>
+            
+            <div className="profile-header">
+              <img 
+                src="src="/src/assets/Salim.png" 
+                alt="Salim" 
+                className="profile-img-circle"
+              />
+              <h3>Md. Salim Hossain</h3>
+              <p className="designation">SO, Sun Pharmaceuticals EZ Ltd.</p>
+            </div>
+
+            <div className="profile-details">
+              <p>📍 <strong>HQ:</strong> ENGLISH ROAD - AZU - DHAKA</p>
+              <p>✉️ <strong>Mail:</strong> <a href="mailto:mdsalim.hossain1@sunpharma.com">mdsalim.hossain1@sunpharma.com</a></p>
+              <p>📞 <strong>Mobile:</strong> <a href="tel:01737462871">01737462871</a></p>
+            </div>
+
+            <div className="modal-footer">
+              <button className="connect-btn" onClick={() => setIsModalOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- শেষ --- */}
+
       
 
 
