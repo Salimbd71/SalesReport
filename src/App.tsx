@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import salimImg from './assets/Salim.png';
+
 import {
   FileValidationResult,
   PivotTableData,
@@ -475,14 +477,16 @@ export default function App() {
 
       </main>
 
-      {/* Footer */}
-            
       {/* --- Floating Profile Badge & Modal --- */}
 <div className="custom-badge" onClick={() => {
   const modal = document.getElementById('profile-modal');
   if (modal) modal.style.display = 'flex';
 }}>
-  <span className="badge-dot"></span>
+  <img 
+    src={salimImg} 
+    alt="Salim" 
+    className="badge-avatar"
+  />
   <span className="badge-text">Designed By Salim</span>
 </div>
 
@@ -497,8 +501,8 @@ export default function App() {
     
     <div className="profile-header">
       <img 
-        src="https://avatars.githubusercontent.com/u/salimbd71" 
-        alt="Salim" 
+        src={salimImg} 
+        alt="Md. Salim Hossain" 
         className="profile-img-circle"
       />
       <h3>Md. Salim Hossain</h3>
@@ -519,6 +523,7 @@ export default function App() {
     </div>
   </div>
 </div>
+
       
 
 
