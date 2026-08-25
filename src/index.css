@@ -1,2 +1,15 @@
 @import "tailwindcss";
 
+.custom-badge {
+  position: fixed;
+  bottom: 15px;
+  right: 15px;
+  background-color: #0f172a;
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 9999;
+}
