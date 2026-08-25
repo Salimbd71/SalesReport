@@ -1,1 +1,36 @@
 @import "tailwindcss";
+/* ফ্লোটিং ডার্ক-গ্রে রাউন্ডেড ব্যাজ */
+.custom-badge {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  background-color: #1f2937; /* Dark Gray Background */
+  color: #ffffff;
+  padding: 6px 16px 6px 8px; /* বামপাশে ছবির জন্য প্যাডিং অ্যাডজাস্ট করা */
+  border-radius: 30px; /* Fully Round Shape */
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border: 1px solid #374151;
+  transition: all 0.3s ease;
+}
+
+.custom-badge:hover {
+  transform: translateY(-3px);
+  background-color: #111827;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ব্যাজের ভেতরে ছোট সার্কেল ছবি */
+.badge-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #3b82f6;
+}
