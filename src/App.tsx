@@ -478,35 +478,19 @@ export default function App() {
       </main>
 
       {/* --- Floating Profile Badge & Modal --- */}
-<div className="custom-badge" onClick={() => {
-  const modal = document.getElementById('profile-modal');
-  if (modal) modal.style.display = 'flex';
-}}>
-  <img 
-    src={salimImg} 
-    alt="Salim" 
-    className="badge-avatar"
-  />
-  <span className="badge-text">Designed By Salim</span>
-</div>
-
-<div id="profile-modal" className="modal-overlay" style={{ display: 'none' }} onClick={(e) => {
-  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
-}}>
-  <div className="modal-content">
-    <button className="close-btn" onClick={() => {
-      const modal = document.getElementById('profile-modal');
-      if (modal) modal.style.display = 'none';
-    }}>&times;</button>
-    
-    <div className="profile-header">
+<div className="badge-wrapper">
+  {/* ফ্লোটিং পপ-আপ কার্ড */}
+  <div id="profile-popup" className="profile-popup-card" style={{ display: 'none' }}>
+    <div className="profile-header-small">
       <img 
         src={salimImg} 
         alt="Md. Salim Hossain" 
-        className="profile-img-circle"
+        className="profile-img-small"
       />
-      <h3>Md. Salim Hossain</h3>
-      <p className="designation">SO, Sun Pharmaceuticals EZ Ltd.</p>
+      <div className="profile-title">
+        <h3>Md. Salim Hossain</h3>
+        <p className="designation">SO, Sun Pharmaceuticals EZ Ltd.</p>
+      </div>
     </div>
 
     <div className="profile-details">
@@ -514,15 +498,22 @@ export default function App() {
       <p>✉️ <strong>Mail:</strong> <a href="mailto:mdsalim.hossain1@sunpharma.com">mdsalim.hossain1@sunpharma.com</a></p>
       <p>📞 <strong>Mobile:</strong> <a href="tel:01737462871">01737462871</a></p>
     </div>
+  </div>
 
-    <div className="modal-footer">
-      <button className="connect-btn" onClick={() => {
-        const modal = document.getElementById('profile-modal');
-        if (modal) modal.style.display = 'none';
-      }}>Close</button>
-    </div>
+  {/* ফ্লোটিং ব্যাজ */}
+  <div className="custom-badge" onClick={() => {
+    const popup = document.getElementById('profile-popup');
+    if (popup) popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+  }}>
+    <img 
+      src={salimImg} 
+      alt="Salim" 
+      className="badge-avatar"
+    />
+    <span className="badge-text">Designed By Salim</span>
   </div>
 </div>
+
 
       
 
