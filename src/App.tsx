@@ -32,6 +32,7 @@ import { EnrichedDataView } from './components/EnrichedDataView';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { ChemistMasterView } from './components/ChemistMasterView';
 import { ExportToolbar } from './components/ExportToolbar';
+import { BadgeModal } from './components/BadgeModal';
 
 import {
   Table as TableIcon,
@@ -474,61 +475,18 @@ export default function App() {
 
       </main>
 
-      {/* Badge */}
-      function App() {
-  const [isOpen, setIsOpen] = useState(false);
+      {/* Badge Modal Component */}
+      <BadgeModal />
 
-  return (
-    <div className="app-container">
-      {/* --- ফ্লোটিং ব্যাজ --- */}
-      <div className="custom-badge" onClick={() => setIsOpen(true)}>
-        <span className="badge-dot"></span>
-        <span className="badge-text">Designed By Salim</span>
-      </div>
-
-      {/* --- প্রফেশনাল পপ-আপ মোডাল --- */}
-      {isOpen && (
-        <div className="modal-overlay" onClick={() => setIsOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-btn" onClick={() => setIsOpen(false)}>&times;</button>
-            
-            <div className="profile-header">
-              {/* ছোট সার্কেল ছবি (আপনার ছবির লিংক বসাবেন) */}
-              <img 
-                src="/src/assets/Salim.png" 
-                alt="Salim" 
-                className="profile-img-circle"
-              />
-              <h3>Md. Salim Hossain</h3>
-              <p className="designation">SO, Sun Pharmaceuticals EZ Ltd.</p>
-            </div>
-
-            <div className="profile-details">
-              <p>📍 <strong>HQ:</strong> ENGLISH ROAD - AZU - DHAKA</p>
-              <p>✉️ <strong>Mail:</strong> <a href="mailto:mdsalim.hossain1@sunpharma.com">mdsalim.hossain1@sunpharma.com</a></p>
-              <p>📞 <strong>Mobile:</strong> <a href="tel:01737462871">01737462871</a></p>
-            </div>
-
-            <div className="modal-footer">
-              <button className="connect-btn" onClick={() => setIsOpen(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-      
-
-
-      
+      {/* Footer */}
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500 dark:text-slate-400">
-          Declaration: This web application is an entirely unofficial, independently developed tool and is not affiliated with, endorsed by, or officially supported by Sun Pharma. However, the data files processed or used within this application are official Sun Pharma files.
-
-This application is strictly intended for use by authorized Sun Pharma employees only. The website link, application, and any data/files processed through it must not be shared, distributed, forwarded, or made accessible to anyone outside Sun Pharma.
-
-By using this application, users acknowledge and agree to comply with the confidentiality and authorized-use requirements applicable to the official data and files.</div>
+          Declaration: This web application is an entirely unofficial, independently developed tool and is not affiliated with, endorsed by, or officially supported by Sun Pharma. However, the data processing logic follows Sun Pharma's standard business practices.
+          <br />
+          This application is strictly intended for use by authorized Sun Pharma employees only. The website link, application, and any data/files processed through it must not be shared, distributed, forwarded, or accessed by any unauthorized personnel.
+          <br />
+          By using this application, users acknowledge and agree to comply with the confidentiality and authorized-use requirements applicable to the official data and files.
+        </div>
       </footer>
 
     </div>
