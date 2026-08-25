@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import './App.css';
 import {
   FileValidationResult,
   PivotTableData,
@@ -473,10 +474,50 @@ export default function App() {
 
       </main>
 
-      {/* Footer */}
-      <div class="custom-badge">
-  Designed By Salim
-</div>
+      {/* Badge */}
+      function App() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="app-container">
+      {/* --- ফ্লোটিং ব্যাজ --- */}
+      <div className="custom-badge" onClick={() => setIsOpen(true)}>
+        <span className="badge-dot"></span>
+        <span className="badge-text">Designed By Salim</span>
+      </div>
+
+      {/* --- প্রফেশনাল পপ-আপ মোডাল --- */}
+      {isOpen && (
+        <div className="modal-overlay" onClick={() => setIsOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-btn" onClick={() => setIsOpen(false)}>&times;</button>
+            
+            <div className="profile-header">
+              {/* ছোট সার্কেল ছবি (আপনার ছবির লিংক বসাবেন) */}
+              <img 
+                src="/src/assets/Salim.png" 
+                alt="Salim" 
+                className="profile-img-circle"
+              />
+              <h3>Md. Salim Hossain</h3>
+              <p className="designation">SO, Sun Pharmaceuticals EZ Ltd.</p>
+            </div>
+
+            <div className="profile-details">
+              <p>📍 <strong>HQ:</strong> ENGLISH ROAD - AZU - DHAKA</p>
+              <p>✉️ <strong>Mail:</strong> <a href="mailto:mdsalim.hossain1@sunpharma.com">mdsalim.hossain1@sunpharma.com</a></p>
+              <p>📞 <strong>Mobile:</strong> <a href="tel:01737462871">01737462871</a></p>
+            </div>
+
+            <div className="modal-footer">
+              <button className="connect-btn" onClick={() => setIsOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
       
 
 
