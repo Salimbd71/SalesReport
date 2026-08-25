@@ -477,6 +477,48 @@ export default function App() {
 
       {/* Footer */}
             
+      {/* --- Floating Profile Badge & Modal --- */}
+<div className="custom-badge" onClick={() => {
+  const modal = document.getElementById('profile-modal');
+  if (modal) modal.style.display = 'flex';
+}}>
+  <span className="badge-dot"></span>
+  <span className="badge-text">Designed By Salim</span>
+</div>
+
+<div id="profile-modal" className="modal-overlay" style={{ display: 'none' }} onClick={(e) => {
+  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+}}>
+  <div className="modal-content">
+    <button className="close-btn" onClick={() => {
+      const modal = document.getElementById('profile-modal');
+      if (modal) modal.style.display = 'none';
+    }}>&times;</button>
+    
+    <div className="profile-header">
+      <img 
+        src="https://avatars.githubusercontent.com/u/salimbd71" 
+        alt="Salim" 
+        className="profile-img-circle"
+      />
+      <h3>Md. Salim Hossain</h3>
+      <p className="designation">SO, Sun Pharmaceuticals EZ Ltd.</p>
+    </div>
+
+    <div className="profile-details">
+      <p>📍 <strong>HQ:</strong> ENGLISH ROAD - AZU - DHAKA</p>
+      <p>✉️ <strong>Mail:</strong> <a href="mailto:mdsalim.hossain1@sunpharma.com">mdsalim.hossain1@sunpharma.com</a></p>
+      <p>📞 <strong>Mobile:</strong> <a href="tel:01737462871">01737462871</a></p>
+    </div>
+
+    <div className="modal-footer">
+      <button className="connect-btn" onClick={() => {
+        const modal = document.getElementById('profile-modal');
+        if (modal) modal.style.display = 'none';
+      }}>Close</button>
+    </div>
+  </div>
+</div>
       
 
 
