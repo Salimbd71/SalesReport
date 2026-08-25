@@ -1,8 +1,2 @@
 @import "tailwindcss";
 
-/* Netlify Drawer Badge Hide */
-#netlify-badge-drawer,
-[data-netlify-deploy-id],
-.netlify-badge {
-  display: none !important;
-}
