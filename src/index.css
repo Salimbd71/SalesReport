@@ -1,9 +1,18 @@
 @import "tailwindcss";
-/* ফ্লোটিং ডার্ক-গ্রে রাউন্ডেড ব্যাজ */
-.custom-badge {
+
+/* মেইন পজিশনিং কনটেইনার */
+.badge-wrapper {
   position: fixed;
   bottom: 18px;
   right: 18px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* ফ্লোটিং ডার্ক-গ্রে রাউন্ডেড ব্যাজ */
+.custom-badge {
   background-color: #1f2937; /* Dark Gray Background */
   color: #ffffff;
   padding: 6px 16px 6px 8px; /* বামপাশে ছবির জন্য প্যাডিং অ্যাডজাস্ট করা */
@@ -11,13 +20,13 @@
   font-size: 13px;
   font-weight: 500;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-  z-index: 9999;
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
   border: 1px solid #374151;
   transition: all 0.3s ease;
+  user-select: none;
 }
 
 .custom-badge:hover {
@@ -33,4 +42,82 @@
   border-radius: 50%;
   object-fit: cover;
   border: 1.5px solid #3b82f6;
+}
+
+/* ব্যাজের ঠিক ওপরের ফ্লোটিং কার্ড */
+.profile-popup-card {
+  background: #ffffff;
+  width: 280px;
+  padding: 16px;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  animation: slideUp 0.2s ease-out;
+}
+
+/* কার্ডের ভেতরে ছোট প্রোফাইল লেআউট */
+.profile-header-small {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+}
+
+.profile-img-small {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #0284c7;
+  flex-shrink: 0;
+}
+
+.profile-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-title h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.profile-title .designation {
+  color: #0284c7;
+  font-weight: 500;
+  font-size: 11px;
+  margin: 2px 0 0 0;
+}
+
+.profile-details {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 10px;
+}
+
+.profile-details p {
+  margin: 6px 0;
+  font-size: 12px;
+  color: #334155;
+  word-break: break-all;
+}
+
+.profile-details a {
+  color: #0284c7;
+  text-decoration: none;
+}
+
+/* কার্ড ওপেন হওয়ার স্মুথ অ্যানিমেশন */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
