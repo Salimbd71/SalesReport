@@ -147,106 +147,216 @@ function buildEnrichedSalesSheet(
 }
 
 /**
- * Builds Sheet 2: HQ-Customer Sales (Enriched with Col K: FLM, Col L: HQ)
- * As requested: "A sheet er sese not on kore K2 L2 column a vlookup formula use Kore Chemist list file theke FLM, HQ bosbe"
+ * Builds Sheet 2: HQ-Customer Sales (Enriched with Col K/M: FLM, Col L/N: HQ, and Comparison if enabled)
  */
 function buildEnrichedHqCustomerSheet(
   worksheet: ExcelJS.Worksheet,
   customerRecords: CustomerSalesRecord[],
-  dateHeader: string
+  dateHeader: string,
+  isCompareMode = false
 ) {
-  // Row 1: Date text at top (Cell A1)
-  const titleRow = worksheet.addRow([dateHeader || 'Customer Sales Report (HQ-Customer Sales)']);
-  titleRow.height = 24;
-  titleRow.getCell(1).font = { bold: true, size: 12, color: { argb: '1E3A8A' } };
-  worksheet.mergeCells('A1:L1');
-  titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
-
-  // Row 2: Headers (A2 to L2)
-  // K2: FLM, L2: HQ
-  const headers = [
-    'HQ_CODE',
-    'HQ_NAME',
-    'CUST_CODE',
-    'MHL_CUST_ID',
-    'MHL_CUST_NAME',
-    'THERAPY',
-    'EXP_QTY_BOX',
-    'EXP_VALUE',
-    'SALES_QTY_BOX',
-    'SALES_VALUE',
-    'FLM', // Col K (K2)
-    'HQ',  // Col L (L2)
-  ];
-
-  const headerRow = worksheet.addRow(headers);
-  applyHeaderStyle(headerRow, '1E40AF', 'FFFFFF');
-
-  // Highlight newly added K2 (FLM) and L2 (HQ) with teal accent
-  headerRow.getCell(11).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: '0D9488' }, // Teal
-  };
-  headerRow.getCell(12).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: '0F766E' }, // Darker Teal
-  };
-
-  // Data rows (K3, L3 onwards)
-  customerRecords.forEach((rec, idx) => {
-    const row = worksheet.addRow([
-      rec.HQ_CODE,
-      rec.HQ_NAME,
-      rec.CUST_CODE,
-      rec.MHL_CUST_ID,
-      rec.MHL_CUST_NAME,
-      rec.THERAPY,
-      rec.EXP_QTY_BOX,
-      rec.EXP_VALUE,
-      rec.SALES_QTY_BOX,
-      rec.SALES_VALUE,
-      rec.FLM, // Populated FLM value in Col K
-      rec.HQ,  // Populated HQ value in Col L
+  if (isCompareMode) {
+    // Comparison Mode
+    // Row 1: Date text at top (Cell A1)
+    const titleRow = worksheet.addRow([
+      dateHeader ? `${dateHeader} (Month-on-Month Comparison)` : 'HQ-Customer Sales (Month-on-Month Comparison)',
     ]);
+    titleRow.height = 24;
+    titleRow.getCell(1).font = { bold: true, size: 12, color: { argb: '1E3A8A' } };
+    worksheet.mergeCells('A1:N1');
+    titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
 
-    // Format numbers
-    row.getCell(7).numFmt = '#,##0';
-    row.getCell(8).numFmt = '#,##0.00';
-    row.getCell(9).numFmt = '#,##0';
-    row.getCell(10).numFmt = '#,##0.00';
+    // Row 2: Headers (A2 to N2)
+    const headers = [
+      'HQ_CODE',
+      'HQ_NAME',
+      'CUST_CODE',
+      'MHL_CUST_ID',
+      'MHL_CUST_NAME',
+      'PRODUCT_COUNT',
+      'EXP_QTY_BOX',
+      'EXP_VALUE',
+      'SALES_QTY_BOX',
+      'SALES_VALUE_CURRENT',
+      'SALES_VALUE_LAST',
+      'Deficit',
+      'FLM',
+      'HQ',
+    ];
 
-    // Highlight enriched cells
-    row.getCell(11).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: idx % 2 === 0 ? 'F0FDFA' : 'CCFBF1' },
-    };
-    row.getCell(12).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: idx % 2 === 0 ? 'F0FDFA' : 'CCFBF1' },
-    };
+    const headerRow = worksheet.addRow(headers);
+    applyHeaderStyle(headerRow, '1E40AF', 'FFFFFF');
 
-    // Cell borders
-    row.eachCell((cell) => {
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'F3F4F6' } },
-        bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
-        left: { style: 'thin', color: { argb: 'F3F4F6' } },
-        right: { style: 'thin', color: { argb: 'F3F4F6' } },
+    // Accent colors for headers
+    headerRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2563EB' } }; // Current (Blue)
+    headerRow.getCell(11).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4F46E5' } }; // Last (Indigo)
+    headerRow.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'BE123C' } }; // Deficit (Rose/Red)
+    headerRow.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0D9488' } }; // FLM (Teal)
+    headerRow.getCell(14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0F766E' } }; // HQ (Dark Teal)
+
+    // Data rows
+    customerRecords.forEach((rec, idx) => {
+      const curVal = rec.SALES_VALUE_CURRENT !== undefined ? rec.SALES_VALUE_CURRENT : rec.SALES_VALUE;
+      const lastVal = rec.SALES_VALUE_LAST !== undefined ? rec.SALES_VALUE_LAST : 0;
+      const deficitVal = rec.deficit !== undefined ? rec.deficit : curVal - lastVal;
+
+      const row = worksheet.addRow([
+        rec.HQ_CODE,
+        rec.HQ_NAME,
+        rec.CUST_CODE,
+        rec.MHL_CUST_ID,
+        rec.MHL_CUST_NAME,
+        rec.PRODUCT_COUNT ?? rec.THERAPY ?? '',
+        rec.EXP_QTY_BOX,
+        rec.EXP_VALUE,
+        rec.SALES_QTY_BOX,
+        curVal,
+        lastVal,
+        deficitVal,
+        rec.FLM,
+        rec.HQ,
+      ]);
+
+      // Format numbers
+      row.getCell(7).numFmt = '#,##0';
+      row.getCell(8).numFmt = '#,##0.00';
+      row.getCell(9).numFmt = '#,##0';
+      row.getCell(10).numFmt = '#,##0.00';
+      row.getCell(11).numFmt = '#,##0.00';
+      row.getCell(12).numFmt = '#,##0.00;[Red]-#,##0.00;0.00';
+
+      // Deficit font color (- value red text)
+      if (deficitVal < 0) {
+        row.getCell(12).font = { bold: true, color: { argb: 'DC2626' } }; // Red text
+      } else if (deficitVal > 0) {
+        row.getCell(12).font = { bold: true, color: { argb: '059669' } }; // Green text
+      }
+
+      // Highlight enriched FLM and HQ
+      row.getCell(13).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: idx % 2 === 0 ? 'F0FDFA' : 'CCFBF1' },
       };
-    });
-  });
+      row.getCell(14).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: idx % 2 === 0 ? 'F0FDFA' : 'CCFBF1' },
+      };
 
-  // Auto column widths
-  worksheet.columns.forEach((col, idx) => {
-    let maxLen = headers[idx] ? headers[idx].length : 12;
-    if (idx === 4) maxLen = 28; // MHL_CUST_NAME
-    if (idx === 10 || idx === 11) maxLen = 22; // FLM & HQ (Col K & L)
-    col.width = Math.max(maxLen + 4, 12);
-  });
+      // Cell borders
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'F3F4F6' } },
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+          left: { style: 'thin', color: { argb: 'F3F4F6' } },
+          right: { style: 'thin', color: { argb: 'F3F4F6' } },
+        };
+      });
+    });
+
+    // Auto column widths
+    worksheet.columns.forEach((col, idx) => {
+      let maxLen = headers[idx] ? headers[idx].length : 12;
+      if (idx === 4) maxLen = 28; // MHL_CUST_NAME
+      if (idx === 9 || idx === 10 || idx === 11) maxLen = 20; // Sales values & Deficit
+      if (idx === 12 || idx === 13) maxLen = 22; // FLM & HQ
+      col.width = Math.max(maxLen + 4, 12);
+    });
+  } else {
+    // Standard Mode (Original 12 columns)
+    // Row 1: Date text at top (Cell A1)
+    const titleRow = worksheet.addRow([dateHeader || 'Customer Sales Report (HQ-Customer Sales)']);
+    titleRow.height = 24;
+    titleRow.getCell(1).font = { bold: true, size: 12, color: { argb: '1E3A8A' } };
+    worksheet.mergeCells('A1:L1');
+    titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+    // Row 2: Headers (A2 to L2)
+    const headers = [
+      'HQ_CODE',
+      'HQ_NAME',
+      'CUST_CODE',
+      'MHL_CUST_ID',
+      'MHL_CUST_NAME',
+      'PRODUCT_COUNT',
+      'EXP_QTY_BOX',
+      'EXP_VALUE',
+      'SALES_QTY_BOX',
+      'SALES_VALUE',
+      'FLM', // Col K (K2)
+      'HQ',  // Col L (L2)
+    ];
+
+    const headerRow = worksheet.addRow(headers);
+    applyHeaderStyle(headerRow, '1E40AF', 'FFFFFF');
+
+    // Highlight newly added K2 (FLM) and L2 (HQ) with teal accent
+    headerRow.getCell(11).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '0D9488' }, // Teal
+    };
+    headerRow.getCell(12).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '0F766E' }, // Darker Teal
+    };
+
+    // Data rows (K3, L3 onwards)
+    customerRecords.forEach((rec, idx) => {
+      const row = worksheet.addRow([
+        rec.HQ_CODE,
+        rec.HQ_NAME,
+        rec.CUST_CODE,
+        rec.MHL_CUST_ID,
+        rec.MHL_CUST_NAME,
+        rec.PRODUCT_COUNT ?? rec.THERAPY ?? '',
+        rec.EXP_QTY_BOX,
+        rec.EXP_VALUE,
+        rec.SALES_QTY_BOX,
+        rec.SALES_VALUE,
+        rec.FLM, // Populated FLM value in Col K
+        rec.HQ,  // Populated HQ value in Col L
+      ]);
+
+      // Format numbers
+      row.getCell(7).numFmt = '#,##0';
+      row.getCell(8).numFmt = '#,##0.00';
+      row.getCell(9).numFmt = '#,##0';
+      row.getCell(10).numFmt = '#,##0.00';
+
+      // Highlight enriched cells
+      row.getCell(11).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: idx % 2 === 0 ? 'F0FDFA' : 'CCFBF1' },
+      };
+      row.getCell(12).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: idx % 2 === 0 ? 'F0FDFA' : 'CCFBF1' },
+      };
+
+      // Cell borders
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'F3F4F6' } },
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+          left: { style: 'thin', color: { argb: 'F3F4F6' } },
+          right: { style: 'thin', color: { argb: 'F3F4F6' } },
+        };
+      });
+    });
+
+    // Auto column widths
+    worksheet.columns.forEach((col, idx) => {
+      let maxLen = headers[idx] ? headers[idx].length : 12;
+      if (idx === 4) maxLen = 28; // MHL_CUST_NAME
+      if (idx === 10 || idx === 11) maxLen = 22; // FLM & HQ (Col K & L)
+      col.width = Math.max(maxLen + 4, 12);
+    });
+  }
 }
 
 /**
@@ -275,8 +385,8 @@ function buildPivotReportSheet(
 
   // Subtitle / metadata row
   const subRow = worksheet.addRow([
-  `Report Structure: Rows = FLM > HQ | Columns = BRAND | Value = Sum of SALES_VALUE in Lac | Grand Total: ${toLac(pivotData.grandTotal).toFixed(2)} Lac | Note: As this file is auto-generated, minor errors may occur. Please manually verify the data if any discrepancy is suspected.`,
-]);
+    `Report Structure: Rows = FLM > HQ | Columns = BRAND | Value = Sum of SALES_VALUE in Lac (1.00 Lac = 100,000 | 0.10 Lac = 10,000) | Grand Total: ${toLac(pivotData.grandTotal).toFixed(2)} Lac`,
+  ]);
   subRow.height = 18;
   subRow.getCell(1).font = { italic: true, size: 10, color: { argb: '4B5563' } };
   worksheet.mergeCells(2, 1, 2, Math.max(pivotData.brands.length + 3, 5));
@@ -447,7 +557,8 @@ export async function exportConsolidatedFile(
   pivotData: PivotTableData,
   chemistList: ChemistRecord[],
   dateHeader: string,
-  fileName = 'Consolidated File with FLM HQ BRAND CHEMIST.xlsx'
+  fileName = 'Consolidated File with FLM HQ BRAND CHEMIST.xlsx',
+  isCompareMode = false
 ) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Sales Data Analysis Workbench';
@@ -459,12 +570,12 @@ export async function exportConsolidatedFile(
   });
   buildEnrichedSalesSheet(salesSheet, salesRecords, dateHeader);
 
-  // Sheet 2: HQ-Customer Sales (Enriched Sheet 2 with K2: FLM, L2: HQ)
+  // Sheet 2: HQ-Customer Sales (Enriched Sheet 2 with FLM, HQ and Comparison if enabled)
   if (customerRecords && customerRecords.length > 0) {
     const customerSheet = workbook.addWorksheet('HQ-Customer Sales', {
       views: [{ state: 'frozen', xSplit: 0, ySplit: 2 }],
     });
-    buildEnrichedHqCustomerSheet(customerSheet, customerRecords, dateHeader);
+    buildEnrichedHqCustomerSheet(customerSheet, customerRecords, dateHeader, isCompareMode);
   }
 
   // Sheet 3: SALES REPORT PIVOT

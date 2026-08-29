@@ -26,13 +26,14 @@ export const EXPECTED_SALES_COLUMNS = [
   'SALES_VALUE',
 ];
 
+// Sheet 2: HQ-Customer Sales format (10 columns as requested)
 export const EXPECTED_CUSTOMER_SALES_COLUMNS = [
   'HQ_CODE',
   'HQ_NAME',
   'CUST_CODE',
   'MHL_CUST_ID',
   'MHL_CUST_NAME',
-  'THERAPY',
+  'PRODUCT_COUNT',
   'EXP_QTY_BOX',
   'EXP_VALUE',
   'SALES_QTY_BOX',
@@ -94,6 +95,280 @@ export function normalizeHqName(hq: string | undefined | null): string {
 }
 
 /**
+ * Parses and strictly validates Last Month Sales File.
+ * By default, selects Sheet 2 (HQ-Customer Sales) / second sheet (index 1).
+ * Validates the 10 columns: HQ_CODE, HQ_NAME, CUST_CODE, MHL_CUST_ID, MHL_CUST_NAME, THERAPY, EXP_QTY_BOX, EXP_VALUE, SALES_QTY_BOX, SALES_VALUE
+ */
+export async function parseLastMonthSalesFile(
+  file: File | ArrayBuffer,
+  selectedSheetName?: string
+): Promise<{
+  customerRecords: Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>[];
+  validation: FileValidationResult;
+  workbook: XLSX.WorkBook;
+}> {
+  const data = file instanceof File ? await file.arrayBuffer() : file;
+  const workbook = XLSX.read(data, {
+    type: 'array',
+    cellDates: true,
+    cellNF: false,
+    cellText: false,
+  });
+  const sheetNames = workbook.SheetNames;
+
+  // Default: Sheet 2 (HQ-Customer Sales) -> index 1 if available
+  let targetSheetName = selectedSheetName;
+  if (!targetSheetName) {
+    if (sheetNames.length >= 2) {
+      targetSheetName = sheetNames[1]; // Sheet 2 default
+    } else {
+      const namedSheet = sheetNames.find(
+        (s) =>
+          (s.toLowerCase().includes('hq-customer') && !s.toLowerCase().includes('product')) ||
+          s.toLowerCase().includes('customer sales') ||
+          s.toLowerCase() === 'sheet2'
+      );
+      targetSheetName = namedSheet || sheetNames[0];
+    }
+  }
+
+  const worksheet = workbook.Sheets[targetSheetName];
+  const issues: ValidationIssue[] = [];
+
+  if (!worksheet) {
+    return {
+      customerRecords: [],
+      workbook,
+      validation: {
+        isValid: false,
+        sheetName: targetSheetName,
+        availableSheets: sheetNames,
+        detectedColumns: [],
+        missingColumns: EXPECTED_CUSTOMER_SALES_COLUMNS,
+        issues: [{ type: 'error', message: `Sheet "${targetSheetName}" not found.` }],
+        rowCount: 0,
+      },
+    };
+  }
+
+  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    defval: '',
+    blankrows: false,
+    raw: true,
+  });
+
+  if (rawRows.length === 0) {
+    return {
+      customerRecords: [],
+      workbook,
+      validation: {
+        isValid: false,
+        sheetName: targetSheetName,
+        availableSheets: sheetNames,
+        detectedColumns: [],
+        missingColumns: EXPECTED_CUSTOMER_SALES_COLUMNS,
+        issues: [{ type: 'error', message: `Sheet "${targetSheetName}" is empty.` }],
+        rowCount: 0,
+      },
+    };
+  }
+
+  // Find header row (usually row 1 or 2)
+  let headerRowIndex = -1;
+  let detectedHeaders: string[] = [];
+
+  for (let r = 0; r < Math.min(rawRows.length, 10); r++) {
+    const row = rawRows[r] || [];
+    const normalizedRow = row.map(normalizeHeader);
+    const matchCount = EXPECTED_CUSTOMER_SALES_COLUMNS.filter((exp) =>
+      normalizedRow.includes(normalizeHeader(exp))
+    ).length;
+
+    if (matchCount >= 3) {
+      headerRowIndex = r;
+      detectedHeaders = row.map((cell: any) => cleanKey(cell));
+      break;
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    headerRowIndex = rawRows.length > 1 ? 1 : 0;
+    detectedHeaders = (rawRows[headerRowIndex] || []).map((c: any) => cleanKey(c));
+    issues.push({
+      type: 'warning',
+      message: `Defaulting to header row ${headerRowIndex + 1}`,
+    });
+  }
+
+  const colMap = new Map<string, number>();
+  detectedHeaders.forEach((colName, idx) => {
+    if (colName) {
+      const norm = normalizeHeader(colName);
+      colMap.set(norm, idx);
+
+      if (
+        norm === 'SALESVALUE' ||
+        norm === 'SALES_VALUE' ||
+        norm === 'SALESVAL' ||
+        norm === 'TOTALSALES' ||
+        (norm.includes('SALES') && norm.includes('VAL'))
+      ) {
+        colMap.set('SALES_VALUE', idx);
+      }
+      if (
+        norm === 'CUSTCODE' ||
+        norm === 'CUSTOMERCODE' ||
+        norm === 'CUST_CODE' ||
+        norm === 'CUSTOMER_CODE' ||
+        norm === 'CUSTID'
+      ) {
+        colMap.set('CUST_CODE', idx);
+      }
+      if (norm === 'HQCODE' || norm === 'HQ_CODE') {
+        colMap.set('HQ_CODE', idx);
+      }
+      if (norm === 'HQNAME' || norm === 'HQ_NAME' || norm === 'HQ') {
+        colMap.set('HQ_NAME', idx);
+      }
+      if (norm === 'MHLCUSTID' || norm === 'MHL_CUST_ID' || norm === 'MHLCODE') {
+        colMap.set('MHL_CUST_ID', idx);
+      }
+      if (norm === 'MHLCUSTNAME' || norm === 'MHL_CUST_NAME') {
+        colMap.set('MHL_CUST_NAME', idx);
+      }
+      if (
+        norm === 'PRODUCTCOUNT' ||
+        norm === 'PRODUCT_COUNT' ||
+        norm === 'PRODCOUNT' ||
+        norm === 'PROD_COUNT' ||
+        norm === 'PRODUCT' ||
+        norm === 'PRODUCTS' ||
+        norm === 'TOTALPRODUCT' ||
+        norm === 'NOOFPRODUCT' ||
+        norm === 'NOOFPRODUCTS' ||
+        norm === 'THERAPY' ||
+        norm === 'THERAPYNAME'
+      ) {
+        colMap.set('PRODUCT_COUNT', idx);
+      }
+      if (norm === 'EXPQTYBOX' || norm === 'EXP_QTY_BOX' || norm === 'EXPQTY') {
+        colMap.set('EXP_QTY_BOX', idx);
+      }
+      if (norm === 'EXPVALUE' || norm === 'EXP_VALUE' || norm === 'EXPVAL') {
+        colMap.set('EXP_VALUE', idx);
+      }
+      if (norm === 'SALESQTYBOX' || norm === 'SALES_QTY_BOX' || norm === 'SALESQTY') {
+        colMap.set('SALES_QTY_BOX', idx);
+      }
+    }
+  });
+
+  // Check missing expected columns
+  const missingCols: string[] = [];
+  EXPECTED_CUSTOMER_SALES_COLUMNS.forEach((exp) => {
+    const norm = normalizeHeader(exp);
+    const found =
+      colMap.has(norm) ||
+      colMap.has(exp) ||
+      detectedHeaders.some((h) => normalizeHeader(h) === norm);
+    if (!found) {
+      missingCols.push(exp);
+    }
+  });
+
+  if (missingCols.length > 0) {
+    issues.push({
+      type: 'warning',
+      message: `Missing ${missingCols.length} expected columns: ${missingCols.join(', ')}`,
+    });
+  }
+
+  const getColVal = (row: any[], colName: string, defaultVal: any = '') => {
+    const idx = colMap.get(normalizeHeader(colName));
+    if (idx !== undefined && idx < row.length) {
+      const val = row[idx];
+      return val !== undefined && val !== null ? val : defaultVal;
+    }
+    const positionalFallback: Record<string, number> = {
+      HQ_CODE: 0,
+      HQ_NAME: 1,
+      CUST_CODE: 2,
+      MHL_CUST_ID: 3,
+      MHL_CUST_NAME: 4,
+      PRODUCT_COUNT: 5,
+      THERAPY: 5,
+      EXP_QTY_BOX: 6,
+      EXP_VALUE: 7,
+      SALES_QTY_BOX: 8,
+      SALES_VALUE: 9,
+    };
+    const fallbackIdx = positionalFallback[colName];
+    if (fallbackIdx !== undefined && fallbackIdx < row.length) {
+      const val = row[fallbackIdx];
+      return val !== undefined && val !== null ? val : defaultVal;
+    }
+    return defaultVal;
+  };
+
+  const getNumVal = (row: any[], colName: string): number => {
+    const val = getColVal(row, colName, 0);
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    if (val === undefined || val === null || val === '') return 0;
+    const cleanStr = String(val).replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
+    const parsed = parseFloat(cleanStr);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const records: Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>[] = [];
+
+  for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.length === 0) continue;
+
+    const custCode = cleanKey(getColVal(row, 'CUST_CODE'));
+    const hqCode = cleanKey(getColVal(row, 'HQ_CODE'));
+    const salesVal = getNumVal(row, 'SALES_VALUE');
+
+    if (!custCode && !hqCode && salesVal === 0) continue;
+
+    const prodCountVal = getColVal(row, 'PRODUCT_COUNT') || getColVal(row, 'THERAPY');
+
+    records.push({
+      id: `last_month_cust_${r}_${custCode}`,
+      HQ_CODE: hqCode,
+      HQ_NAME: cleanKey(getColVal(row, 'HQ_NAME')),
+      CUST_CODE: custCode,
+      MHL_CUST_ID: cleanKey(getColVal(row, 'MHL_CUST_ID')),
+      MHL_CUST_NAME: cleanKey(getColVal(row, 'MHL_CUST_NAME')),
+      PRODUCT_COUNT: prodCountVal !== '' ? prodCountVal : '-',
+      THERAPY: cleanKey(prodCountVal),
+      EXP_QTY_BOX: getNumVal(row, 'EXP_QTY_BOX'),
+      EXP_VALUE: getNumVal(row, 'EXP_VALUE'),
+      SALES_QTY_BOX: getNumVal(row, 'SALES_QTY_BOX'),
+      SALES_VALUE: salesVal,
+      rawRowIndex: r + 1,
+    });
+  }
+
+  const isValid = records.length > 0;
+
+  return {
+    customerRecords: records,
+    workbook,
+    validation: {
+      isValid,
+      sheetName: targetSheetName,
+      availableSheets: sheetNames,
+      detectedColumns: detectedHeaders.filter(Boolean),
+      missingColumns: missingCols,
+      issues,
+      rowCount: records.length,
+    },
+  };
+}
+
+/**
  * Helper to parse a Sheet 2 (HQ-Customer Sales) from workbook
  */
 export function parseCustomerSalesSheetFromWorkbook(
@@ -107,19 +382,16 @@ export function parseCustomerSalesSheetFromWorkbook(
   let targetSheetName = customSheetName;
 
   if (!targetSheetName) {
-    // Look for Sheet 2 (index 1) or sheet matching "HQ-Customer Sales"
-    const namedSheet = sheetNames.find(
-      (s) =>
-        (s.toLowerCase().includes('hq-customer') && !s.toLowerCase().includes('product')) ||
-        s.toLowerCase().includes('customer sales') ||
-        s.toLowerCase() === 'sheet2'
-    );
-    if (namedSheet) {
-      targetSheetName = namedSheet;
-    } else if (sheetNames.length >= 2) {
-      targetSheetName = sheetNames[1]; // Sheet 2 (index 1)
+    if (sheetNames.length >= 2) {
+      targetSheetName = sheetNames[1]; // Sheet 2 (index 1) default!
     } else {
-      targetSheetName = sheetNames[0];
+      const namedSheet = sheetNames.find(
+        (s) =>
+          (s.toLowerCase().includes('hq-customer') && !s.toLowerCase().includes('product')) ||
+          s.toLowerCase().includes('customer sales') ||
+          s.toLowerCase() === 'sheet2'
+      );
+      targetSheetName = namedSheet || sheetNames[0];
     }
   }
 
@@ -198,21 +470,24 @@ export function parseCustomerSalesSheetFromWorkbook(
       if (norm === 'MHLCUSTNAME' || norm === 'MHL_CUST_NAME') {
         colMap.set('MHL_CUST_NAME', idx);
       }
+      if (
+        norm === 'PRODUCTCOUNT' ||
+        norm === 'PRODUCT_COUNT' ||
+        norm === 'PRODCOUNT' ||
+        norm === 'PROD_COUNT' ||
+        norm === 'PRODUCT' ||
+        norm === 'PRODUCTS' ||
+        norm === 'TOTALPRODUCT' ||
+        norm === 'NOOFPRODUCT' ||
+        norm === 'NOOFPRODUCTS' ||
+        norm === 'THERAPY' ||
+        norm === 'THERAPYNAME'
+      ) {
+        colMap.set('PRODUCT_COUNT', idx);
+      }
     }
   });
 
-  // Explicit positional fallbacks for Sheet 2:
-  // Col A: HQ_CODE (0)
-  // Col B: HQ_NAME (1)
-  // Col C: CUST_CODE (2)
-  // Col D: MHL_CUST_ID (3)
-  // Col E: MHL_CUST_NAME (4)
-  // Col F: THERAPY (5)
-  // Col G: EXP_QTY_BOX (6)
-  // Col H: EXP_VALUE (7)
-  // Col I: SALES_QTY_BOX (8)
-  // Col J: SALES_VALUE (9)
-  // (Col K and L will be added as K2: FLM, L2: HQ)
   if (!colMap.has('CUST_CODE') && detectedHeaders.length > 2) {
     colMap.set('CUST_CODE', 2);
   }
@@ -232,6 +507,7 @@ export function parseCustomerSalesSheetFromWorkbook(
       CUST_CODE: 2,
       MHL_CUST_ID: 3,
       MHL_CUST_NAME: 4,
+      PRODUCT_COUNT: 5,
       THERAPY: 5,
       EXP_QTY_BOX: 6,
       EXP_VALUE: 7,
@@ -267,6 +543,8 @@ export function parseCustomerSalesSheetFromWorkbook(
 
     if (!custCode && !hqCode && salesVal === 0) continue;
 
+    const prodCountVal = getColVal(row, 'PRODUCT_COUNT') || getColVal(row, 'THERAPY');
+
     records.push({
       id: `cust_sales_${r}_${custCode}`,
       HQ_CODE: hqCode,
@@ -274,7 +552,8 @@ export function parseCustomerSalesSheetFromWorkbook(
       CUST_CODE: custCode,
       MHL_CUST_ID: cleanKey(getColVal(row, 'MHL_CUST_ID')),
       MHL_CUST_NAME: cleanKey(getColVal(row, 'MHL_CUST_NAME')),
-      THERAPY: cleanKey(getColVal(row, 'THERAPY')),
+      PRODUCT_COUNT: prodCountVal !== '' ? prodCountVal : '-',
+      THERAPY: cleanKey(prodCountVal),
       EXP_QTY_BOX: getNumVal(row, 'EXP_QTY_BOX'),
       EXP_VALUE: getNumVal(row, 'EXP_VALUE'),
       SALES_QTY_BOX: getNumVal(row, 'SALES_QTY_BOX'),
@@ -396,7 +675,6 @@ export async function parseSalesFile(
   }
 
   if (headerRowIndex === -1) {
-    // Fallback: row 1 (index 1) if available, otherwise row 0
     headerRowIndex = rawRows.length > 1 ? 1 : 0;
     detectedHeaders = (rawRows[headerRowIndex] || []).map((c: any) => cleanKey(c));
     issues.push({
@@ -439,44 +717,81 @@ export async function parseSalesFile(
       if (norm === 'HQNAME' || norm === 'HQ_NAME' || norm === 'HQ') {
         colMap.set('HQ_NAME', idx);
       }
-      if (norm === 'MHLCUSTID' || norm === 'MHL_CUST_ID' || norm === 'MHLCODE' || norm === 'MHL_CODE') {
+      if (norm === 'MHLCUSTID' || norm === 'MHL_CUST_ID' || norm === 'MHLCODE') {
         colMap.set('MHL_CUST_ID', idx);
       }
       if (norm === 'MHLCUSTNAME' || norm === 'MHL_CUST_NAME') {
         colMap.set('MHL_CUST_NAME', idx);
       }
+      if (norm === 'ITEMCODE' || norm === 'ITEM_CODE') {
+        colMap.set('ITEM_CODE', idx);
+      }
+      if (norm === 'ITEMNAME' || norm === 'ITEM_NAME') {
+        colMap.set('ITEM_NAME', idx);
+      }
+      if (norm === 'ITEMSER' || norm === 'ITEM_SER') {
+        colMap.set('ITEM_SER', idx);
+      }
+      if (norm === 'SALESPACK' || norm === 'SALES_PACK') {
+        colMap.set('SALES_PACK', idx);
+      }
+      if (norm === 'EXPQTYBOX' || norm === 'EXP_QTY_BOX' || norm === 'EXPQTY') {
+        colMap.set('EXP_QTY_BOX', idx);
+      }
+      if (norm === 'EXPVALUE' || norm === 'EXP_VALUE' || norm === 'EXPVAL') {
+        colMap.set('EXP_VALUE', idx);
+      }
+      if (norm === 'SALESQTYBOX' || norm === 'SALES_QTY_BOX' || norm === 'SALESQTY') {
+        colMap.set('SALES_QTY_BOX', idx);
+      }
+      if (norm === 'THERAPY' || norm === 'THERAPYNAME') {
+        colMap.set('THERAPY', idx);
+      }
     }
   });
 
-  // Explicit fallback for Column G (index 6) as BRAND: "Sales data file er G2 number column a brand ase"
-  if (!colMap.has('BRAND') && detectedHeaders.length > 6) {
-    colMap.set('BRAND', 6); // Column G
-  }
-  // Explicit fallback for Column O (index 14) as SALES_VALUE
-  if (!colMap.has('SALES_VALUE') && detectedHeaders.length > 14) {
-    colMap.set('SALES_VALUE', 14); // Column O
-  }
-  // Explicit fallback for Column C (index 2) as CUST_CODE
-  if (!colMap.has('CUST_CODE') && detectedHeaders.length > 2) {
-    colMap.set('CUST_CODE', 2); // Column C
-  }
-
-  // Check missing columns
+  // Check missing expected columns
   const missingCols: string[] = [];
   EXPECTED_SALES_COLUMNS.forEach((exp) => {
-    if (!colMap.has(normalizeHeader(exp))) {
+    const norm = normalizeHeader(exp);
+    const found =
+      colMap.has(norm) ||
+      colMap.has(exp) ||
+      detectedHeaders.some((h) => normalizeHeader(h) === norm);
+    if (!found) {
       missingCols.push(exp);
     }
   });
 
-  // Helper to extract values
+  if (missingCols.length > 0) {
+    issues.push({
+      type: 'warning',
+      message: `Missing ${missingCols.length} expected columns: ${missingCols.join(', ')}`,
+    });
+  }
+
+  // Fallback positional indexing if not matched by name:
+  // Col A: HQ_CODE (0)
+  // Col B: HQ_NAME (1)
+  // Col C: CUST_CODE (2)
+  // Col D: MHL_CUST_ID (3)
+  // Col E: MHL_CUST_NAME (4)
+  // Col F: THERAPY (5)
+  // Col G: BRAND (6)
+  // Col H: ITEM_CODE (7)
+  // Col I: ITEM_NAME (8)
+  // Col J: ITEM_SER (9)
+  // Col K: SALES_PACK (10)
+  // Col L: EXP_QTY_BOX (11)
+  // Col M: EXP_VALUE (12)
+  // Col N: SALES_QTY_BOX (13)
+  // Col O: SALES_VALUE (14)
   const getColVal = (row: any[], colName: string, defaultVal: any = '') => {
     const idx = colMap.get(normalizeHeader(colName));
     if (idx !== undefined && idx < row.length) {
       const val = row[idx];
       return val !== undefined && val !== null ? val : defaultVal;
     }
-    // Positional fallback
     const positionalFallback: Record<string, number> = {
       HQ_CODE: 0,
       HQ_NAME: 1,
@@ -484,7 +799,7 @@ export async function parseSalesFile(
       MHL_CUST_ID: 3,
       MHL_CUST_NAME: 4,
       THERAPY: 5,
-      BRAND: 6, // Col G
+      BRAND: 6,
       ITEM_CODE: 7,
       ITEM_NAME: 8,
       ITEM_SER: 9,
@@ -628,21 +943,36 @@ export async function parseChemistFile(
     raw: true,
   });
 
-  // Find header row
+  if (rawRows.length === 0) {
+    return {
+      chemistMap: new Map(),
+      chemistList: [],
+      workbook,
+      validation: {
+        isValid: false,
+        sheetName: targetSheetName,
+        availableSheets: sheetNames,
+        detectedColumns: [],
+        missingColumns: EXPECTED_CHEMIST_COLUMNS,
+        issues: [{ type: 'error', message: `Sheet "${targetSheetName}" is empty.` }],
+        rowCount: 0,
+      },
+    };
+  }
+
+  // Find header row in first 10 rows
   let headerRowIndex = -1;
   let detectedHeaders: string[] = [];
 
   for (let r = 0; r < Math.min(rawRows.length, 10); r++) {
     const row = rawRows[r] || [];
     const normalizedRow = row.map(normalizeHeader);
-    const hasCust = normalizedRow.some(
-      (h) => h.includes('CUSTCODE') || h.includes('CUST') || h.includes('MHLCODE')
+    const hasCustCode = normalizedRow.some(
+      (h) => h === 'CUSTCODE' || h === 'CUSTOMERCODE' || h === 'CUST_CODE' || h.includes('CUST')
     );
-    const hasFsmOrHq = normalizedRow.some(
-      (h) => h.includes('FSM') || h.includes('FLM') || h.includes('AZURA') || h.includes('HQ')
-    );
+    const hasFlmOrFsm = normalizedRow.some((h) => h.includes('FSM') || h.includes('FLM'));
 
-    if (hasCust && (hasFsmOrHq || row.length >= 8)) {
+    if (hasCustCode && hasFlmOrFsm) {
       headerRowIndex = r;
       detectedHeaders = row.map((cell: any) => cleanKey(cell));
       break;
@@ -650,73 +980,92 @@ export async function parseChemistFile(
   }
 
   if (headerRowIndex === -1) {
-    headerRowIndex = 0;
-    detectedHeaders = (rawRows[0] || []).map((c: any) => cleanKey(c));
+    for (let r = 0; r < Math.min(rawRows.length, 5); r++) {
+      const row = rawRows[r] || [];
+      const normalizedRow = row.map(normalizeHeader);
+      if (normalizedRow.some((h) => h.includes('CUST') || h.includes('CODE'))) {
+        headerRowIndex = r;
+        detectedHeaders = row.map((cell: any) => cleanKey(cell));
+        break;
+      }
+    }
   }
 
+  if (headerRowIndex === -1) {
+    headerRowIndex = 0;
+    detectedHeaders = (rawRows[0] || []).map((c: any) => cleanKey(c));
+    issues.push({
+      type: 'warning',
+      message: 'Chemist List header row defaulted to row 1.',
+    });
+  }
+
+  // Map columns
   let custCodeIdx = -1;
+  let custNameIdx = -1;
   let flmIdx = -1;
   let hqIdx = -1;
-  let custNameIdx = -1;
+  let slNoIdx = -1;
   let mhlCodeIdx = -1;
+  let addressIdx = -1;
+  let depotIdx = -1;
+  let rsmIdx = -1;
 
-  detectedHeaders.forEach((h, idx) => {
-    const norm = normalizeHeader(h);
+  detectedHeaders.forEach((colName, idx) => {
+    const norm = normalizeHeader(colName);
+    if (!norm) return;
+
     if (
       norm === 'CUSTCODE' ||
       norm === 'CUSTOMERCODE' ||
       norm === 'CUST_CODE' ||
-      norm === 'CUST' ||
-      norm.includes('CUSTCODE')
+      norm === 'CUSTID' ||
+      norm === 'CODE'
     ) {
-      custCodeIdx = idx;
-    } else if (norm.includes('CUSTNAME') || norm.includes('CUSTOMERNAME') || norm.includes('CHEMISTNAME')) {
+      if (custCodeIdx === -1) custCodeIdx = idx;
+    } else if (norm === 'CUSTNAME' || norm === 'CUSTOMERNAME' || norm === 'CHEMISTNAME') {
       custNameIdx = idx;
-    } else if (norm.includes('MHLCODE') || norm.includes('MHL_CODE') || norm === 'MHL') {
-      mhlCodeIdx = idx;
     } else if (
-      norm.includes('FSM(NEW)202627') ||
       norm.includes('FSMNEW') ||
-      norm.includes('FSM202627') ||
-      norm.includes('FSM') ||
+      norm.includes('FSM-(NEW)') ||
+      norm.includes('FSM(NEW)') ||
+      norm.includes('FSM-NEW') ||
+      norm === 'FSM' ||
+      norm === 'FLM' ||
       norm.includes('FLM')
     ) {
       flmIdx = idx;
     } else if (
-      norm.includes('AZURAHQ(NEWDESIGN)202627') ||
-      norm.includes('AZURAHQNEW') ||
-      norm.includes('AZURA202627') ||
+      norm.includes('AZURAHQ(NEWDESIGN)') ||
       norm.includes('AZURAHQ') ||
-      norm.includes('HQDESIGN') ||
-      norm.includes('NEWDESIGN')
+      norm.includes('NEWDESIGN') ||
+      norm === 'HQ' ||
+      norm === 'AZURAHQ' ||
+      (norm.includes('HQ') && !norm.includes('CODE'))
     ) {
       hqIdx = idx;
+    } else if (norm === 'SLNO' || norm === 'SL') {
+      slNoIdx = idx;
+    } else if (norm === 'MHLCODE' || norm === 'MHLCUSTID') {
+      mhlCodeIdx = idx;
+    } else if (norm.includes('ADDRESS')) {
+      addressIdx = idx;
+    } else if (norm.includes('DEPOT')) {
+      depotIdx = idx;
+    } else if (norm.includes('RSM')) {
+      rsmIdx = idx;
     }
   });
 
-  // Positional fallback according to specifications:
-  // FLM: Col I (index 8)
-  // HQ: Col K (index 10)
-  if (custCodeIdx === -1) {
-    detectedHeaders.forEach((h, idx) => {
-      if (normalizeHeader(h).includes('CUST')) custCodeIdx = idx;
-    });
-    if (custCodeIdx === -1 && detectedHeaders.length > 2) custCodeIdx = 2; // Col C
-  }
-
-  if (flmIdx === -1) {
-    detectedHeaders.forEach((h, idx) => {
-      if (normalizeHeader(h).includes('FSM') || normalizeHeader(h).includes('FLM')) flmIdx = idx;
-    });
-    if (flmIdx === -1 && detectedHeaders.length > 8) flmIdx = 8; // Col I
-  }
-
-  if (hqIdx === -1) {
-    detectedHeaders.forEach((h, idx) => {
-      if (normalizeHeader(h).includes('AZURA') || normalizeHeader(h).includes('HQ')) hqIdx = idx;
-    });
-    if (hqIdx === -1 && detectedHeaders.length > 10) hqIdx = 10; // Col K
-  }
+  // Positional fallback for Chemist Sheet:
+  // Column C: Cust code (index 2)
+  // Column D: Cust name (index 3)
+  // Column I: FSM-(NEW)2026-27 (index 8) -> FLM
+  // Column K: AZURA HQ ( New Design)-2026-27 (index 10) -> HQ
+  if (custCodeIdx === -1 && detectedHeaders.length > 2) custCodeIdx = 2;
+  if (custNameIdx === -1 && detectedHeaders.length > 3) custNameIdx = 3;
+  if (flmIdx === -1 && detectedHeaders.length > 8) flmIdx = 8;
+  if (hqIdx === -1 && detectedHeaders.length > 10) hqIdx = 10;
 
   const chemistMap = new Map<string, ChemistRecord>();
   const chemistList: ChemistRecord[] = [];
@@ -726,66 +1075,55 @@ export async function parseChemistFile(
     if (!row || row.length === 0) continue;
 
     const rawCustCode = custCodeIdx !== -1 && custCodeIdx < row.length ? row[custCodeIdx] : '';
-    const custCode = cleanKey(rawCustCode);
+    const cleanCustCode = cleanKey(rawCustCode);
 
-    if (!custCode) continue;
+    if (!cleanCustCode) continue;
 
-    const rawFlmVal = flmIdx !== -1 && flmIdx < row.length ? cleanKey(row[flmIdx]) : '';
-    const rawHqVal = hqIdx !== -1 && hqIdx < row.length ? cleanKey(row[hqIdx]) : '';
-    const custName = custNameIdx !== -1 && custNameIdx < row.length ? cleanKey(row[custNameIdx]) : '';
-    const mhlCode = mhlCodeIdx !== -1 && mhlCodeIdx < row.length ? cleanKey(row[mhlCodeIdx]) : '';
+    const custName =
+      custNameIdx !== -1 && custNameIdx < row.length ? cleanKey(row[custNameIdx]) : '';
+    const rawFlm = flmIdx !== -1 && flmIdx < row.length ? row[flmIdx] : '';
+    const rawHq = hqIdx !== -1 && hqIdx < row.length ? row[hqIdx] : '';
 
-    const normalizedFlm = normalizeFlmName(rawFlmVal);
-    const normalizedHq = normalizeHqName(rawHqVal);
+    const flmName = normalizeFlmName(rawFlm);
+    const hqName = normalizeHqName(rawHq);
 
     const record: ChemistRecord = {
-      custCode,
-      custName: custName || `Customer ${custCode}`,
-      mhlCode,
-      fsmNew2627: normalizedFlm,
-      azuraHqNew2627: normalizedHq,
-      slNo: row[0],
+      slNo: slNoIdx !== -1 && slNoIdx < row.length ? row[slNoIdx] : r,
+      mhlCode: mhlCodeIdx !== -1 && mhlCodeIdx < row.length ? cleanKey(row[mhlCodeIdx]) : '',
+      custCode: cleanCustCode,
+      custName: custName,
+      address: addressIdx !== -1 && addressIdx < row.length ? cleanKey(row[addressIdx]) : '',
+      nameOfDepot: depotIdx !== -1 && depotIdx < row.length ? cleanKey(row[depotIdx]) : '',
+      rsm: rsmIdx !== -1 && rsmIdx < row.length ? cleanKey(row[rsmIdx]) : '',
+      fsmNew2627: flmName,
+      azuraHqNew2627: hqName,
     };
 
-    // Store multiple key aliases for robust matching
-    const keysToAdd = new Set<string>();
-    keysToAdd.add(custCode);
-    keysToAdd.add(custCode.toUpperCase());
-    keysToAdd.add(custCode.toLowerCase());
-    keysToAdd.add(custCode.replace(/^0+/, '')); // strip leading 0s
-    if (!isNaN(Number(custCode)) && custCode.length > 0) {
-      keysToAdd.add(String(Number(custCode)));
-      keysToAdd.add(custCode.padStart(5, '0'));
-      keysToAdd.add(custCode.padStart(6, '0'));
-      keysToAdd.add(custCode.padStart(7, '0'));
+    chemistMap.set(cleanCustCode, record);
+    // Also index normalized numeric code (e.g. without leading zeros or with string conversion)
+    const upperCode = cleanCustCode.toUpperCase();
+    if (upperCode !== cleanCustCode) {
+      chemistMap.set(upperCode, record);
     }
-    if (mhlCode) {
-      keysToAdd.add(mhlCode);
-      keysToAdd.add(mhlCode.toUpperCase());
-      keysToAdd.add(mhlCode.replace(/^0+/, ''));
-    }
-
-    keysToAdd.forEach((k) => {
-      if (k && !chemistMap.has(k)) {
-        chemistMap.set(k, record);
-      }
-    });
 
     chemistList.push(record);
   }
 
-  const isValid = chemistList.length > 0;
+  const missingChemistCols: string[] = [];
+  if (custCodeIdx === -1) missingChemistCols.push('Cust code (Column C)');
+  if (flmIdx === -1) missingChemistCols.push('FSM-(NEW)2026-27 (Column I / FLM)');
+  if (hqIdx === -1) missingChemistCols.push('AZURA HQ ( New Design)-2026-27 (Column K / HQ)');
 
   return {
     chemistMap,
     chemistList,
     workbook,
     validation: {
-      isValid,
+      isValid: chemistList.length > 0,
       sheetName: targetSheetName,
       availableSheets: sheetNames,
       detectedColumns: detectedHeaders.filter(Boolean),
-      missingColumns: [],
+      missingColumns: missingChemistCols,
       issues,
       rowCount: chemistList.length,
     },
@@ -793,24 +1131,11 @@ export async function parseChemistFile(
 }
 
 /**
- * Builds HQ to FLM lookup table
- */
-function buildHqToFlmLookup(chemistMap: Map<string, ChemistRecord>): Map<string, string> {
-  const hqToFlmMap = new Map<string, string>();
-  chemistMap.forEach((chemist) => {
-    if (chemist.azuraHqNew2627 && chemist.fsmNew2627 && chemist.fsmNew2627 !== 'Unassigned FLM') {
-      const hqNorm = normalizeHeader(chemist.azuraHqNew2627);
-      if (hqNorm && !hqToFlmMap.has(hqNorm)) {
-        hqToFlmMap.set(hqNorm, chemist.fsmNew2627);
-      }
-    }
-  });
-  return hqToFlmMap;
-}
-
-/**
- * Performs VLOOKUP / mapping between Sheet 4 Sales Records and Chemist Records
- * Sets Column P (FLM) and Column Q (HQ)
+ * Enriches Sales Records (Sheet 4) with FLM and HQ via VLOOKUP matching
+ *
+ * Rules:
+ * 1. P2: FLM = VLOOKUP from Chemist List Column I [FSM-(NEW)2026-27]
+ * 2. Q2: HQ  = VLOOKUP from Chemist List Column K [AZURA HQ ( New Design)-2026-27]
  */
 export function enrichSalesWithChemist(
   salesRecords: Omit<SalesRecord, 'FLM' | 'HQ' | 'isMatched'>[],
@@ -824,50 +1149,44 @@ export function enrichSalesWithChemist(
   let matchedCount = 0;
   let unmatchedCount = 0;
   const unmatchedSet = new Set<string>();
-  const hqToFlmMap = buildHqToFlmLookup(chemistMap);
 
   const enrichedRecords: SalesRecord[] = salesRecords.map((rec) => {
-    const code = cleanKey(rec.CUST_CODE);
-    const mhlCode = cleanKey(rec.MHL_CUST_ID);
+    const custKey = cleanKey(rec.CUST_CODE);
+    let chemist = chemistMap.get(custKey);
 
-    // Multi-tier lookup
-    let chemist =
-      chemistMap.get(code) ||
-      chemistMap.get(code.toUpperCase()) ||
-      chemistMap.get(code.replace(/^0+/, '')) ||
-      (mhlCode ? chemistMap.get(mhlCode) || chemistMap.get(mhlCode.toUpperCase()) : undefined);
+    if (!chemist && custKey) {
+      chemist = chemistMap.get(custKey.toUpperCase());
+    }
+
+    // Try without leading zeros or trimmed
+    if (!chemist && custKey) {
+      const stripped = custKey.replace(/^0+/, '');
+      if (stripped && stripped !== custKey) {
+        chemist = chemistMap.get(stripped);
+      }
+    }
+
+    let flm = 'Unassigned FLM';
+    let hq = rec.HQ_NAME || 'Unassigned HQ';
+    let isMatched = false;
 
     if (chemist) {
+      flm = chemist.fsmNew2627 || 'Unassigned FLM';
+      hq = chemist.azuraHqNew2627 || rec.HQ_NAME || 'Unassigned HQ';
+      isMatched = true;
       matchedCount++;
-      return {
-        ...rec,
-        FLM: chemist.fsmNew2627 || 'Unassigned FLM',
-        HQ: chemist.azuraHqNew2627 || normalizeHqName(rec.HQ_NAME) || 'Unassigned HQ',
-        isMatched: true,
-      };
+    } else {
+      unmatchedCount++;
+      if (rec.CUST_CODE) {
+        unmatchedSet.add(rec.CUST_CODE);
+      }
     }
 
-    // Secondary fallback: Infer FLM from HQ_NAME if available
-    const salesHqNorm = normalizeHeader(rec.HQ_NAME);
-    const inferredFlm = salesHqNorm ? hqToFlmMap.get(salesHqNorm) : undefined;
-
-    if (inferredFlm) {
-      matchedCount++;
-      return {
-        ...rec,
-        FLM: inferredFlm,
-        HQ: normalizeHqName(rec.HQ_NAME) || 'Unassigned HQ',
-        isMatched: true,
-      };
-    }
-
-    unmatchedCount++;
-    if (code) unmatchedSet.add(code);
     return {
       ...rec,
-      FLM: 'Unassigned FLM',
-      HQ: normalizeHqName(rec.HQ_NAME) || 'Unassigned HQ',
-      isMatched: false,
+      FLM: flm,
+      HQ: hq,
+      isMatched,
     };
   });
 
@@ -880,8 +1199,10 @@ export function enrichSalesWithChemist(
 }
 
 /**
- * Performs VLOOKUP / mapping for Sheet 2: HQ-Customer Sales Records
- * Sets Column K (FLM) and Column L (HQ)
+ * Enriches Sheet 2 (HQ-Customer Sales) in Standard Mode
+ * Appends:
+ * - K2: FLM = VLOOKUP from Chemist List Column I [FSM-(NEW)2026-27]
+ * - L2: HQ  = VLOOKUP from Chemist List Column K [AZURA HQ ( New Design)-2026-27]
  */
 export function enrichCustomerSalesWithChemist(
   customerRecords: Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>[],
@@ -893,47 +1214,39 @@ export function enrichCustomerSalesWithChemist(
 } {
   let matchedCount = 0;
   let unmatchedCount = 0;
-  const hqToFlmMap = buildHqToFlmLookup(chemistMap);
 
   const enrichedCustomerRecords: CustomerSalesRecord[] = customerRecords.map((rec) => {
-    const code = cleanKey(rec.CUST_CODE);
-    const mhlCode = cleanKey(rec.MHL_CUST_ID);
+    const custKey = cleanKey(rec.CUST_CODE);
+    let chemist = chemistMap.get(custKey);
 
-    let chemist =
-      chemistMap.get(code) ||
-      chemistMap.get(code.toUpperCase()) ||
-      chemistMap.get(code.replace(/^0+/, '')) ||
-      (mhlCode ? chemistMap.get(mhlCode) || chemistMap.get(mhlCode.toUpperCase()) : undefined);
+    if (!chemist && custKey) {
+      chemist = chemistMap.get(custKey.toUpperCase());
+    }
+    if (!chemist && custKey) {
+      const stripped = custKey.replace(/^0+/, '');
+      if (stripped && stripped !== custKey) {
+        chemist = chemistMap.get(stripped);
+      }
+    }
+
+    let flm = 'Unassigned FLM';
+    let hq = rec.HQ_NAME || 'Unassigned HQ';
+    let isMatched = false;
 
     if (chemist) {
+      flm = chemist.fsmNew2627 || 'Unassigned FLM';
+      hq = chemist.azuraHqNew2627 || rec.HQ_NAME || 'Unassigned HQ';
+      isMatched = true;
       matchedCount++;
-      return {
-        ...rec,
-        FLM: chemist.fsmNew2627 || 'Unassigned FLM',
-        HQ: chemist.azuraHqNew2627 || normalizeHqName(rec.HQ_NAME) || 'Unassigned HQ',
-        isMatched: true,
-      };
+    } else {
+      unmatchedCount++;
     }
 
-    const salesHqNorm = normalizeHeader(rec.HQ_NAME);
-    const inferredFlm = salesHqNorm ? hqToFlmMap.get(salesHqNorm) : undefined;
-
-    if (inferredFlm) {
-      matchedCount++;
-      return {
-        ...rec,
-        FLM: inferredFlm,
-        HQ: normalizeHqName(rec.HQ_NAME) || 'Unassigned HQ',
-        isMatched: true,
-      };
-    }
-
-    unmatchedCount++;
     return {
       ...rec,
-      FLM: 'Unassigned FLM',
-      HQ: normalizeHqName(rec.HQ_NAME) || 'Unassigned HQ',
-      isMatched: false,
+      FLM: flm,
+      HQ: hq,
+      isMatched,
     };
   });
 
@@ -941,5 +1254,147 @@ export function enrichCustomerSalesWithChemist(
     enrichedCustomerRecords,
     matchedCount,
     unmatchedCount,
+  };
+}
+
+/**
+ * Month-on-Month Comparison & Enrichment for Sheet 2 (HQ-Customer Sales)
+ *
+ * Requirements:
+ * 1. Sheet 2 columns:
+ *    Col A..J: HQ_CODE, HQ_NAME, CUST_CODE, MHL_CUST_ID, MHL_CUST_NAME, THERAPY, EXP_QTY_BOX, EXP_VALUE, SALES_QTY_BOX
+ *    Col K: SALES_VALUE_CURRENT
+ *    Col L: SALES_VALUE_LAST
+ *    Col M: Deficit = SALES_VALUE_CURRENT - SALES_VALUE_LAST (negative in red text)
+ *    Col N: FLM (VLOOKUP from Chemist List Col I)
+ *    Col O: HQ (VLOOKUP from Chemist List Col K)
+ *
+ * 2. Full outer join: Includes chemists present in current month and/or last month.
+ */
+export function compareAndEnrichCustomerSales(
+  currentRecords: Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>[],
+  lastMonthRecords: Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>[],
+  chemistMap: Map<string, ChemistRecord>
+): {
+  enrichedCustomerRecords: CustomerSalesRecord[];
+  matchedCount: number;
+  unmatchedCount: number;
+  totalDeficit: number;
+  totalCurrentSales: number;
+  totalLastSales: number;
+} {
+  // Aggregate current month by CUST_CODE
+  const currentMap = new Map<string, Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>>();
+  currentRecords.forEach((rec) => {
+    const key = cleanKey(rec.CUST_CODE);
+    if (key) {
+      if (currentMap.has(key)) {
+        const existing = currentMap.get(key)!;
+        existing.SALES_VALUE += rec.SALES_VALUE;
+        existing.SALES_QTY_BOX += rec.SALES_QTY_BOX;
+        existing.EXP_VALUE += rec.EXP_VALUE;
+        existing.EXP_QTY_BOX += rec.EXP_QTY_BOX;
+      } else {
+        currentMap.set(key, { ...rec });
+      }
+    }
+  });
+
+  // Aggregate last month by CUST_CODE
+  const lastMap = new Map<string, Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>>();
+  lastMonthRecords.forEach((rec) => {
+    const key = cleanKey(rec.CUST_CODE);
+    if (key) {
+      if (lastMap.has(key)) {
+        const existing = lastMap.get(key)!;
+        existing.SALES_VALUE += rec.SALES_VALUE;
+        existing.SALES_QTY_BOX += rec.SALES_QTY_BOX;
+        existing.EXP_VALUE += rec.EXP_VALUE;
+        existing.EXP_QTY_BOX += rec.EXP_QTY_BOX;
+      } else {
+        lastMap.set(key, { ...rec });
+      }
+    }
+  });
+
+  // Collect union of all customer codes
+  const allCustCodes = new Set<string>();
+  currentMap.forEach((_, code) => allCustCodes.add(code));
+  lastMap.forEach((_, code) => allCustCodes.add(code));
+
+  let matchedCount = 0;
+  let unmatchedCount = 0;
+  let totalDeficit = 0;
+  let totalCurrentSales = 0;
+  let totalLastSales = 0;
+
+  const enrichedCustomerRecords: CustomerSalesRecord[] = [];
+
+  allCustCodes.forEach((custCode) => {
+    const cur = currentMap.get(custCode);
+    const last = lastMap.get(custCode);
+
+    const isCurrentOnly = !!cur && !last;
+    const isLastMonthOnly = !cur && !!last;
+
+    const baseRec = cur || last!;
+    const curSalesVal = cur ? cur.SALES_VALUE : 0;
+    const lastSalesVal = last ? last.SALES_VALUE : 0;
+    const deficit = curSalesVal - lastSalesVal;
+
+    totalCurrentSales += curSalesVal;
+    totalLastSales += lastSalesVal;
+    totalDeficit += deficit;
+
+    // VLOOKUP Chemist
+    let chemist = chemistMap.get(custCode);
+    if (!chemist && custCode) {
+      chemist = chemistMap.get(custCode.toUpperCase());
+    }
+    if (!chemist && custCode) {
+      const stripped = custCode.replace(/^0+/, '');
+      if (stripped && stripped !== custCode) {
+        chemist = chemistMap.get(stripped);
+      }
+    }
+
+    let flm = 'Unassigned FLM';
+    let hq = baseRec.HQ_NAME || 'Unassigned HQ';
+    let isMatched = false;
+
+    if (chemist) {
+      flm = chemist.fsmNew2627 || 'Unassigned FLM';
+      hq = chemist.azuraHqNew2627 || baseRec.HQ_NAME || 'Unassigned HQ';
+      isMatched = true;
+      matchedCount++;
+    } else {
+      unmatchedCount++;
+    }
+
+    enrichedCustomerRecords.push({
+      ...baseRec,
+      id: `compare_${custCode}`,
+      SALES_VALUE: curSalesVal,
+      SALES_VALUE_CURRENT: curSalesVal,
+      SALES_VALUE_LAST: lastSalesVal,
+      deficit: deficit,
+      isLastMonthOnly,
+      isCurrentMonthOnly: isCurrentOnly,
+      FLM: flm,
+      HQ: hq,
+      isMatched,
+    });
+  });
+
+  // Sort by Deficit ascending (largest drops first)
+  enrichedCustomerRecords.sort((a, b) => (a.deficit || 0) - (b.deficit || 0));
+
+  return {
+    enrichedCustomerRecords,
+    matchedCount,
+    unmatchedCount,
+    totalDeficit,
+    totalCurrentSales,
+    totalLastSales,
   };
 }
