@@ -28,13 +28,19 @@ export interface CustomerSalesRecord {
   CUST_CODE: string;
   MHL_CUST_ID: string;
   MHL_CUST_NAME: string;
-  THERAPY: string;
+  PRODUCT_COUNT: number | string;
+  THERAPY?: string;
   EXP_QTY_BOX: number;
   EXP_VALUE: number;
   SALES_QTY_BOX: number;
   SALES_VALUE: number;
-  FLM: string; // Col K (new in Sheet 2)
-  HQ: string;  // Col L (new in Sheet 2)
+  SALES_VALUE_CURRENT?: number;
+  SALES_VALUE_LAST?: number;
+  deficit?: number;
+  isLastMonthOnly?: boolean;
+  isCurrentMonthOnly?: boolean;
+  FLM: string; // Col K (or Col M in Compare Mode)
+  HQ: string;  // Col L (or Col N in Compare Mode)
   isMatched: boolean;
   rawRowIndex?: number;
 }
