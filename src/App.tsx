@@ -5,7 +5,6 @@
 
 import React, { useState, useMemo } from 'react';
 import salimImg from './assets/Salim.png';
-
 import {
   FileValidationResult,
   PivotTableData,
@@ -18,6 +17,7 @@ import {
   parseChemistFile,
   enrichSalesWithChemist,
   enrichCustomerSalesWithChemist,
+  compareAndEnrichCustomerSales,
 } from './utils/excelParser';
 import { generatePivotTable } from './utils/pivotEngine';
 import {
@@ -43,13 +43,22 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-
-  
-  // Raw file state
+  // Raw file state: Current Month Sales
   const [salesRawFile, setSalesRawFile] = useState<File | null>(null);
   const [salesFileName, setSalesFileName] = useState<string>('');
+  
+  // Raw file state: Chemist Master List
   const [chemistRawFile, setChemistRawFile] = useState<File | null>(null);
   const [chemistFileName, setChemistFileName] = useState<string>('');
+
+  // Raw file state: Last Month Sales (for Comparison Mode)
+  const [isCompareMode, setIsCompareMode] = useState<boolean>(false);
+  const [lastMonthRawFile, setLastMonthRawFile] = useState<File | null>(null);
+  const [lastMonthFileName, setLastMonthFileName] = useState<string>('');
+  const [lastMonthValidation, setLastMonthValidation] = useState<FileValidationResult | undefined>();
+  const [rawLastMonthCustomerRecords, setRawLastMonthCustomerRecords] = useState<
+    Omit<CustomerSalesRecord, 'FLM' | 'HQ' | 'isMatched'>[]
+  >([]);
 
   // Selected sheet names
   const [selectedSalesSheet, setSelectedSalesSheet] = useState<string>('');
@@ -142,6 +151,26 @@ export default function App() {
     }
   };
 
+  const handleUploadLastMonthFile = async (file: File) => {
+    setLastMonthRawFile(file);
+    setLastMonthFileName(file.name);
+    setHasReportGenerated(false);
+    setIsLoading(true);
+    try {
+      const result = await parseSalesFile(file);
+      setRawLastMonthCustomerRecords(result.customerRecords);
+      setLastMonthValidation(result.validation);
+      showNotification(
+        `Last Month Sales loaded: Sheet 2 (${result.customerRecords.length.toLocaleString()} customer rows)`
+      );
+    } catch (err: any) {
+      console.error('Error parsing Last Month Sales file:', err);
+      showNotification('Failed to read Last Month Sales Excel file: ' + err.message, 'info');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Sheet switchers
   const handleSelectSalesSheet = async (sheetName: string) => {
     if (salesRawFile) {
@@ -188,12 +217,18 @@ export default function App() {
       return;
     }
 
+    if (isCompareMode && !lastMonthRawFile) {
+      showNotification('Please select the Last Month Sales Data file to perform comparison.', 'info');
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Re-verify parsing if records aren't loaded
       let currentSales = rawSalesRecords;
       let currentCustomerSales = rawCustomerRecords;
       let currentChemistMap = chemistMap;
+      let currentLastMonthCustomerSales = rawLastMonthCustomerRecords;
 
       if (currentSales.length === 0 || currentCustomerSales.length === 0) {
         const salesRes = await parseSalesFile(salesRawFile, selectedSalesSheet);
@@ -214,13 +249,32 @@ export default function App() {
         setChemistValidation(chemistRes.validation);
       }
 
+      if (isCompareMode && lastMonthRawFile && currentLastMonthCustomerSales.length === 0) {
+        const lastMonthRes = await parseSalesFile(lastMonthRawFile);
+        currentLastMonthCustomerSales = lastMonthRes.customerRecords;
+        setRawLastMonthCustomerRecords(lastMonthRes.customerRecords);
+        setLastMonthValidation(lastMonthRes.validation);
+      }
+
       // Perform VLOOKUP mapping for Sheet 4 (P2: FLM, Q2: HQ)
       const { enrichedRecords: enriched, matchedCount: mCount, unmatchedCount: uCount, unmatchedCodes: uCodes } =
         enrichSalesWithChemist(currentSales, currentChemistMap);
 
-      // Perform VLOOKUP mapping for Sheet 2 (K2: FLM, L2: HQ)
-      const { enrichedCustomerRecords: enrichedCustomer } =
-        enrichCustomerSalesWithChemist(currentCustomerSales, currentChemistMap);
+      // Perform mapping / comparison for Sheet 2
+      let enrichedCustomer: CustomerSalesRecord[] = [];
+      if (isCompareMode && currentLastMonthCustomerSales.length > 0) {
+        // Compare Mode: Full outer join with last month, calculate Deficit, and enrich FLM/HQ
+        const compResult = compareAndEnrichCustomerSales(
+          currentCustomerSales,
+          currentLastMonthCustomerSales,
+          currentChemistMap
+        );
+        enrichedCustomer = compResult.enrichedCustomerRecords;
+      } else {
+        // Standard Mode: VLOOKUP mapping for Sheet 2 (K2: FLM, L2: HQ)
+        const stdResult = enrichCustomerSalesWithChemist(currentCustomerSales, currentChemistMap);
+        enrichedCustomer = stdResult.enrichedCustomerRecords;
+      }
 
       setEnrichedRecords(enriched);
       setEnrichedCustomerRecords(enrichedCustomer);
@@ -231,7 +285,7 @@ export default function App() {
       setActiveTab('pivot');
 
       showNotification(
-        `Sales Report generated! Sheet 4 (${enriched.length.toLocaleString()} rows) & Sheet 2 (${enrichedCustomer.length.toLocaleString()} rows) enriched.`
+        `Sales Report generated! Sheet 4 (${enriched.length.toLocaleString()} rows) & Sheet 2 (${enrichedCustomer.length.toLocaleString()} rows) ${isCompareMode ? 'compared & enriched' : 'enriched'}.`
       );
 
       // Smooth scroll down to output
@@ -277,7 +331,8 @@ export default function App() {
       pivotData,
       chemistList,
       dateHeader,
-      'Consolidated File with FLM HQ BRAND CHEMIST.xlsx'
+      'Consolidated File with FLM HQ BRAND CHEMIST.xlsx',
+      isCompareMode
     );
     showNotification('Downloaded: Consolidated File with FLM HQ BRAND CHEMIST.xlsx');
   };
@@ -296,6 +351,11 @@ export default function App() {
     setSalesFileName('');
     setChemistRawFile(null);
     setChemistFileName('');
+    setLastMonthRawFile(null);
+    setLastMonthFileName('');
+    setLastMonthValidation(undefined);
+    setRawLastMonthCustomerRecords([]);
+    setIsCompareMode(false);
     setRawSalesRecords([]);
     setRawCustomerRecords([]);
     setEnrichedRecords([]);
@@ -342,11 +402,16 @@ export default function App() {
         <FileUploadCards
           salesFileName={salesFileName}
           chemistFileName={chemistFileName}
+          lastMonthFileName={lastMonthFileName}
           salesValidation={salesValidation}
           chemistValidation={chemistValidation}
+          lastMonthValidation={lastMonthValidation}
+          isCompareMode={isCompareMode}
+          onToggleCompareMode={setIsCompareMode}
           isLoading={isLoading}
           onUploadSalesFile={handleUploadSalesFile}
           onUploadChemistFile={handleUploadChemistFile}
+          onUploadLastMonthFile={handleUploadLastMonthFile}
           onGenerateReport={handleGenerateReport}
           hasReportGenerated={hasReportGenerated}
         />
@@ -407,7 +472,7 @@ export default function App() {
                 <FileSpreadsheet className="w-4 h-4" />
                 <span>Enriched Sales Data Tables</span>
                 <span className="bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded-full text-[10px] font-mono">
-                  Sheet 4 (P & Q) & Sheet 2 (K & L)
+                  {isCompareMode ? 'Sheet 4 & Sheet 2 (Compared)' : 'Sheet 4 (P & Q) & Sheet 2 (K & L)'}
                 </span>
               </button>
 
@@ -431,7 +496,7 @@ export default function App() {
                   className={`px-4 py-2.5 font-semibold text-xs sm:text-sm rounded-t-xl transition-all flex items-center space-x-2 cursor-pointer ${
                     activeTab === 'chemist'
                       ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-t-2 border-t-emerald-600 border-x border-slate-200 dark:border-slate-800 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                 >
                   <Users className="w-4 h-4" />
@@ -456,6 +521,7 @@ export default function App() {
                   records={enrichedRecords}
                   customerRecords={enrichedCustomerRecords}
                   dateHeader={dateHeader}
+                  isCompareMode={isCompareMode}
                   onExportConsolidated={handleExportConsolidated}
                 />
               )}
@@ -476,7 +542,11 @@ export default function App() {
         )}
 
       </main>
-
+      
+      
+      
+      
+      
       {/* --- Floating Profile Badge & Modal --- */}
 <div className="badge-wrapper">
   {/* ফ্লোটিং পপ-আপ কার্ড */}
@@ -515,10 +585,13 @@ export default function App() {
 </div>
 
 
-      
 
 
-      
+
+
+
+
+      {/* Footer */}
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500 dark:text-slate-400">
           Declaration: This web application is an entirely unofficial, independently developed tool and is not affiliated with, endorsed by, or officially supported by Sun Pharma. However, the data files processed or used within this application are official Sun Pharma files.
