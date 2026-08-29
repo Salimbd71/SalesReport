@@ -7,7 +7,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  Layers
+  Layers,
+  GitCompare,
+  TrendingDown,
+  TrendingUp,
+  ArrowDownRight,
+  ArrowUpRight,
+  FileSpreadsheet
 } from 'lucide-react';
 import { CustomerSalesRecord, SalesRecord } from '../types';
 
@@ -15,6 +21,7 @@ interface EnrichedDataViewProps {
   records: SalesRecord[];
   customerRecords?: CustomerSalesRecord[];
   dateHeader: string;
+  isCompareMode?: boolean;
   onExportConsolidated: () => void;
 }
 
@@ -22,6 +29,7 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
   records,
   customerRecords = [],
   dateHeader,
+  isCompareMode = false,
   onExportConsolidated,
 }) => {
   // Sub-view switch: Sheet 4 (Product Sales) or Sheet 2 (Customer Sales)
@@ -32,6 +40,7 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
   const [selectedBrand, setSelectedBrand] = useState<string>('ALL');
   const [selectedFlm, setSelectedFlm] = useState<string>('ALL');
   const [matchFilter, setMatchFilter] = useState<'ALL' | 'MATCHED' | 'UNMATCHED'>('ALL');
+  const [compareFilter, setCompareFilter] = useState<'ALL' | 'DEFICIT_ONLY' | 'GROWTH_ONLY' | 'LAST_ONLY' | 'CURRENT_ONLY'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
@@ -84,6 +93,14 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
       if (matchFilter === 'MATCHED' && !r.isMatched) return false;
       if (matchFilter === 'UNMATCHED' && r.isMatched) return false;
 
+      if (isCompareMode) {
+        const deficit = r.deficit !== undefined ? r.deficit : (r.SALES_VALUE_CURRENT || 0) - (r.SALES_VALUE_LAST || 0);
+        if (compareFilter === 'DEFICIT_ONLY' && deficit >= 0) return false;
+        if (compareFilter === 'GROWTH_ONLY' && deficit <= 0) return false;
+        if (compareFilter === 'LAST_ONLY' && !r.isLastMonthOnly) return false;
+        if (compareFilter === 'CURRENT_ONLY' && !r.isCurrentMonthOnly) return false;
+      }
+
       if (searchTerm) {
         const q = searchTerm.toLowerCase();
         const match =
@@ -92,12 +109,44 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
           r.HQ_NAME.toLowerCase().includes(q) ||
           r.FLM.toLowerCase().includes(q) ||
           r.HQ.toLowerCase().includes(q) ||
-          r.THERAPY.toLowerCase().includes(q);
+          String(r.PRODUCT_COUNT || r.THERAPY || '').toLowerCase().includes(q);
         if (!match) return false;
       }
       return true;
     });
-  }, [customerRecords, selectedFlm, matchFilter, searchTerm]);
+  }, [customerRecords, selectedFlm, matchFilter, compareFilter, isCompareMode, searchTerm]);
+
+  // Sheet 2 Comparison Summary Stats
+  const comparisonStats = useMemo(() => {
+    if (!isCompareMode || customerRecords.length === 0) return null;
+    let currentTotal = 0;
+    let lastTotal = 0;
+    let deficitCount = 0;
+    let growthCount = 0;
+    let lastOnlyCount = 0;
+
+    customerRecords.forEach((r) => {
+      const cur = r.SALES_VALUE_CURRENT !== undefined ? r.SALES_VALUE_CURRENT : r.SALES_VALUE;
+      const last = r.SALES_VALUE_LAST !== undefined ? r.SALES_VALUE_LAST : 0;
+      const def = r.deficit !== undefined ? r.deficit : cur - last;
+      currentTotal += cur;
+      lastTotal += last;
+      if (def < 0) deficitCount++;
+      if (def > 0) growthCount++;
+      if (r.isLastMonthOnly) lastOnlyCount++;
+    });
+
+    const netDeficit = currentTotal - lastTotal;
+    return {
+      currentTotal,
+      lastTotal,
+      netDeficit,
+      deficitCount,
+      growthCount,
+      lastOnlyCount,
+      totalCount: customerRecords.length,
+    };
+  }, [customerRecords, isCompareMode]);
 
   const activeRecordsCount = subView === 'sheet4' ? filteredSheet4Records.length : filteredSheet2Records.length;
   const totalPages = Math.ceil(activeRecordsCount / pageSize) || 1;
@@ -129,6 +178,11 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Both Sheet 4 and Sheet 2 enriched with FLM & HQ from Chemist List Master
+              {isCompareMode && (
+                <span className="ml-1 text-indigo-600 dark:text-indigo-400 font-semibold">
+                  • Month-on-Month Comparison Active on Sheet 2
+                </span>
+              )}
             </p>
           </div>
 
@@ -138,66 +192,124 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-2 shadow-sm transition-all cursor-pointer self-start lg:self-auto"
           >
             <Download className="w-4 h-4" />
-            <span>Download Consolidated File.xlsx</span>
+            <span>Export Consolidated File (.xlsx)</span>
           </button>
         </div>
 
-        {/* Sub-Tabs: Sheet 4 vs Sheet 2 */}
-        <div className="mt-4 flex flex-wrap gap-2 items-center">
+        {/* Sub-view Switcher Tabs */}
+        <div className="flex flex-wrap items-center gap-2.5 mt-5">
           <button
+            id="subtab-sheet4"
+            type="button"
             onClick={() => {
               setSubView('sheet4');
               setCurrentPage(1);
             }}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-2 ${
               subView === 'sheet4'
-                ? 'bg-teal-700 text-white shadow-sm'
-                : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'
+                ? 'bg-slate-900 text-white shadow-md'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Sheet 4: HQ-Customer-Product Sales</span>
-            <span className="bg-teal-900/60 text-teal-100 px-2 py-0.5 rounded-full text-[10px] font-mono font-normal">
-              Col P (FLM) & Col Q (HQ) • {records.length.toLocaleString()} rows
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+              subView === 'sheet4' ? 'bg-slate-800 text-teal-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+            }`}>
+              Col P (FLM) & Q (HQ) • {records.length.toLocaleString()} rows
             </span>
           </button>
 
-          {customerRecords.length > 0 && (
-            <button
-              onClick={() => {
-                setSubView('sheet2');
-                setCurrentPage(1);
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                subView === 'sheet2'
-                  ? 'bg-teal-700 text-white shadow-sm'
-                  : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Sheet 2: HQ-Customer Sales</span>
-              <span className="bg-teal-900/60 text-teal-100 px-2 py-0.5 rounded-full text-[10px] font-mono font-normal">
-                Col K (FLM) & Col L (HQ) • {customerRecords.length.toLocaleString()} rows
-              </span>
-            </button>
-          )}
+          <button
+            id="subtab-sheet2"
+            type="button"
+            onClick={() => {
+              setSubView('sheet2');
+              setCurrentPage(1);
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-2 ${
+              subView === 'sheet2'
+                ? 'bg-teal-700 text-white shadow-md'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Sheet 2: HQ-Customer Sales</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+              subView === 'sheet2' ? 'bg-teal-800 text-teal-100' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+            }`}>
+              {isCompareMode ? 'Comparison (Current vs Last)' : 'Col K (FLM) & L (HQ)'} • {customerRecords.length.toLocaleString()} rows
+            </span>
+          </button>
         </div>
+      </div>
 
-        {/* Filter Controls */}
-        <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+      {/* Comparison Summary Metric Cards (When Sheet 2 & Compare Mode is active) */}
+      {subView === 'sheet2' && isCompareMode && comparisonStats && (
+        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-900/40">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 shadow-sm">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">SALES_VALUE_CURRENT</div>
+              <div className="text-sm sm:text-base font-bold font-mono text-blue-600 dark:text-blue-400 mt-0.5">
+                ৳{comparisonStats.currentTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 shadow-sm">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">SALES_VALUE_LAST</div>
+              <div className="text-sm sm:text-base font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">
+                ৳{comparisonStats.lastTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+
+            <div className={`p-3 rounded-xl bg-white dark:bg-slate-900 border shadow-sm ${
+              comparisonStats.netDeficit < 0
+                ? 'border-rose-300 dark:border-rose-800 bg-rose-50/30'
+                : 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/30'
+            }`}>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center justify-between">
+                <span>Net Deficit / Growth</span>
+                {comparisonStats.netDeficit < 0 ? (
+                  <ArrowDownRight className="w-3.5 h-3.5 text-rose-600" />
+                ) : (
+                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                )}
+              </div>
+              <div className={`text-sm sm:text-base font-bold font-mono mt-0.5 ${
+                comparisonStats.netDeficit < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                ৳{comparisonStats.netDeficit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 shadow-sm">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Deficit Chemist Count</div>
+              <div className="text-sm sm:text-base font-bold font-mono text-rose-600 dark:text-rose-400 mt-0.5">
+                {comparisonStats.deficitCount.toLocaleString()} / {comparisonStats.totalCount.toLocaleString()}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Filters Bar */}
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
           
-          {/* Search */}
+          {/* Search Box */}
           <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
+              placeholder="Search code, chemist, FLM, HQ..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search Customer, FLM, HQ..."
-              className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs"
             />
           </div>
 
@@ -210,7 +322,7 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
                   setSelectedBrand(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full py-1.5 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full py-1.5 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs"
               >
                 <option value="ALL">All Brands ({uniqueBrands.length})</option>
                 {uniqueBrands.map((b) => (
@@ -220,11 +332,25 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
                 ))}
               </select>
             </div>
-          ) : (
-            <div className="flex items-center px-3 py-1.5 bg-slate-100 dark:bg-slate-800/60 rounded-lg text-slate-500 text-xs italic">
-              Sheet 2 Customer Level
+          ) : isCompareMode ? (
+            /* Deficit / Comparison Filter (In Sheet 2 when compare mode is active) */
+            <div>
+              <select
+                value={compareFilter}
+                onChange={(e) => {
+                  setCompareFilter(e.target.value as any);
+                  setCurrentPage(1);
+                }}
+                className="w-full py-1.5 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs font-medium"
+              >
+                <option value="ALL">All Month Comparisons</option>
+                <option value="DEFICIT_ONLY">📉 Deficit Only (Drop / Negative)</option>
+                <option value="GROWTH_ONLY">📈 Growth Only (Positive)</option>
+                <option value="LAST_ONLY">⏮ Last Month Only (0 in Current)</option>
+                <option value="CURRENT_ONLY">⏭ Current Month Only (0 in Last)</option>
+              </select>
             </div>
-          )}
+          ) : null}
 
           {/* FLM Filter */}
           <div>
@@ -234,7 +360,7 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
                 setSelectedFlm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full py-1.5 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full py-1.5 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs"
             >
               <option value="ALL">All FLMs ({uniqueFlms.length})</option>
               {uniqueFlms.map((f) => (
@@ -253,7 +379,7 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
                 setMatchFilter(e.target.value as any);
                 setCurrentPage(1);
               }}
-              className="w-full py-1.5 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full py-1.5 px-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-teal-500 text-xs"
             >
               <option value="ALL">All Match Status</option>
               <option value="MATCHED">✓ Matched in Chemist List</option>
@@ -374,7 +500,7 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
             </tbody>
           </table>
         ) : (
-          /* Sheet 2: HQ-Customer Sales Table */
+          /* Sheet 2: HQ-Customer Sales Table (Supports Compare Mode) */
           <table id="enriched-sales-table-sheet2" className="w-full text-left border-collapse text-xs">
             <thead className="bg-slate-900 text-white sticky top-0 z-20">
               <tr>
@@ -382,36 +508,60 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
                 <th className="py-2.5 px-3 font-semibold text-slate-100 border-r border-slate-800 min-w-[100px]">CUST_CODE</th>
                 <th className="py-2.5 px-3 font-semibold text-slate-100 border-r border-slate-800 min-w-[200px]">MHL_CUST_NAME</th>
                 
-                {/* Highlighted New Columns: K (FLM) and L (HQ) for Sheet 2 */}
+                {/* Highlighted FLM and HQ for Sheet 2 */}
                 <th className="py-2.5 px-3 font-bold text-teal-200 bg-teal-900/80 border-r border-teal-700 min-w-[180px]">
-                  ★ K2: FLM (VLOOKUP)
+                  ★ {isCompareMode ? 'M2: FLM (VLOOKUP)' : 'K2: FLM (VLOOKUP)'}
                 </th>
                 <th className="py-2.5 px-3 font-bold text-teal-200 bg-teal-900/80 border-r border-teal-700 min-w-[150px]">
-                  ★ L2: HQ (VLOOKUP)
+                  ★ {isCompareMode ? 'N2: HQ (VLOOKUP)' : 'L2: HQ (VLOOKUP)'}
                 </th>
 
-                <th className="py-2.5 px-3 font-semibold text-slate-100 border-r border-slate-800 min-w-[140px]">THERAPY</th>
-                <th className="py-2.5 px-3 font-semibold text-right text-slate-100 border-r border-slate-800 min-w-[100px]">EXP_QTY</th>
-                <th className="py-2.5 px-3 font-semibold text-right text-slate-100 border-r border-slate-800 min-w-[110px]">EXP_VALUE</th>
-                <th className="py-2.5 px-3 font-semibold text-right text-slate-100 border-r border-slate-800 min-w-[100px]">SALES_QTY</th>
-                <th className="py-2.5 px-3 font-bold text-right text-emerald-300 bg-slate-950 border-r border-slate-800 min-w-[120px]">
-                  SALES_VALUE (৳)
-                </th>
+                <th className="py-2.5 px-3 font-semibold text-slate-100 border-r border-slate-800 min-w-[140px]">PRODUCT_COUNT</th>
+                
+                {isCompareMode ? (
+                  /* Comparison Columns */
+                  <>
+                    <th className="py-2.5 px-3 font-bold text-right text-blue-200 bg-blue-950 border-r border-slate-800 min-w-[140px]">
+                      SALES_VALUE_CURRENT (৳)
+                    </th>
+                    <th className="py-2.5 px-3 font-bold text-right text-indigo-200 bg-indigo-950 border-r border-slate-800 min-w-[140px]">
+                      SALES_VALUE_LAST (৳)
+                    </th>
+                    <th className="py-2.5 px-3 font-bold text-right text-rose-200 bg-rose-950 border-r border-slate-800 min-w-[130px]">
+                      Deficit (৳)
+                    </th>
+                  </>
+                ) : (
+                  /* Standard Mode Columns */
+                  <>
+                    <th className="py-2.5 px-3 font-semibold text-right text-slate-100 border-r border-slate-800 min-w-[100px]">EXP_QTY</th>
+                    <th className="py-2.5 px-3 font-semibold text-right text-slate-100 border-r border-slate-800 min-w-[110px]">EXP_VALUE</th>
+                    <th className="py-2.5 px-3 font-semibold text-right text-slate-100 border-r border-slate-800 min-w-[100px]">SALES_QTY</th>
+                    <th className="py-2.5 px-3 font-bold text-right text-emerald-300 bg-slate-950 border-r border-slate-800 min-w-[120px]">
+                      SALES_VALUE (৳)
+                    </th>
+                  </>
+                )}
+
                 <th className="py-2.5 px-3 font-semibold text-slate-100 border-r border-slate-800 min-w-[110px]">Orig HQ_NAME</th>
-                <th className="py-2.5 px-3 font-semibold text-center text-slate-100 min-w-[90px]">Status</th>
+                <th className="py-2.5 px-3 font-semibold text-center text-slate-100 min-w-[100px]">Status</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
               {paginatedSheet2.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="text-center py-12 text-slate-400 italic">
+                  <td colSpan={13} className="text-center py-12 text-slate-400 italic">
                     No records in Sheet 2 (HQ-Customer Sales) or none match filter.
                   </td>
                 </tr>
               ) : (
                 paginatedSheet2.map((rec, idx) => {
                   const globalIndex = (currentPage - 1) * pageSize + idx + 1;
+                  const curVal = rec.SALES_VALUE_CURRENT !== undefined ? rec.SALES_VALUE_CURRENT : rec.SALES_VALUE;
+                  const lastVal = rec.SALES_VALUE_LAST !== undefined ? rec.SALES_VALUE_LAST : 0;
+                  const deficitVal = rec.deficit !== undefined ? rec.deficit : curVal - lastVal;
+
                   return (
                     <tr
                       key={rec.id || idx}
@@ -427,36 +577,71 @@ export const EnrichedDataView: React.FC<EnrichedDataViewProps> = ({
                         {rec.MHL_CUST_NAME || '-'}
                       </td>
 
-                      {/* Newly added FLM column (Col K) */}
+                      {/* FLM column */}
                       <td className="py-2 px-3 font-semibold text-teal-800 dark:text-teal-300 bg-teal-50/60 dark:bg-teal-950/20 border-r border-teal-100 dark:border-teal-900/40 truncate max-w-[180px]">
                         {rec.FLM}
                       </td>
 
-                      {/* Newly added HQ column (Col L) */}
+                      {/* HQ column */}
                       <td className="py-2 px-3 font-semibold text-teal-800 dark:text-teal-300 bg-teal-50/60 dark:bg-teal-950/20 border-r border-teal-100 dark:border-teal-900/40 truncate max-w-[150px]">
                         {rec.HQ}
                       </td>
 
-                      <td className="py-2 px-3 text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 text-[11px]">
-                        {rec.THERAPY}
+                      <td className="py-2 px-3 text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 text-[11px] font-mono">
+                        {rec.PRODUCT_COUNT || rec.THERAPY || '-'}
                       </td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
-                        {rec.EXP_QTY_BOX.toLocaleString()}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
-                        ৳{rec.EXP_VALUE.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
-                        {rec.SALES_QTY_BOX.toLocaleString()}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-800/30 border-r border-slate-100 dark:border-slate-800">
-                        ৳{rec.SALES_VALUE.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </td>
+
+                      {isCompareMode ? (
+                        /* Compare Mode Columns */
+                        <>
+                          <td className="py-2 px-3 text-right font-mono font-semibold text-blue-700 dark:text-blue-300 bg-blue-50/40 dark:bg-blue-950/20 border-r border-slate-100 dark:border-slate-800">
+                            ৳{curVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50/40 dark:bg-indigo-950/20 border-r border-slate-100 dark:border-slate-800">
+                            ৳{lastVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className={`py-2 px-3 text-right font-mono font-bold border-r border-slate-100 dark:border-slate-800 ${
+                            deficitVal < 0
+                              ? 'text-rose-600 dark:text-rose-400 bg-rose-50/70 dark:bg-rose-950/30'
+                              : deficitVal > 0
+                              ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/30'
+                              : 'text-slate-600 dark:text-slate-400'
+                          }`}>
+                            {deficitVal < 0 ? `-৳${Math.abs(deficitVal).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `৳${deficitVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                          </td>
+                        </>
+                      ) : (
+                        /* Standard Mode Columns */
+                        <>
+                          <td className="py-2 px-3 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                            {rec.EXP_QTY_BOX.toLocaleString()}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                            ৳{rec.EXP_VALUE.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                            {rec.SALES_QTY_BOX.toLocaleString()}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-800/30 border-r border-slate-100 dark:border-slate-800">
+                            ৳{rec.SALES_VALUE.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                        </>
+                      )}
+
                       <td className="py-2 px-3 text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 text-[11px]">
                         {rec.HQ_NAME}
                       </td>
+
                       <td className="py-2 px-3 text-center">
-                        {rec.isMatched ? (
+                        {rec.isLastMonthOnly ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
+                            Last Month Only
+                          </span>
+                        ) : rec.isCurrentMonthOnly ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                            Current Only
+                          </span>
+                        ) : rec.isMatched ? (
                           <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
                             <CheckCircle2 className="w-2.5 h-2.5" />
                             <span>Matched</span>
