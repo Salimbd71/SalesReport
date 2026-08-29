@@ -92,17 +92,42 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
               Select your <strong>Sales Data file</strong> and <strong>Chemist list file</strong>, then click <strong>"Generate Sales Report"</strong>. The engine performs VLOOKUP mapping into Columns P (FLM) & Q (HQ), maps BRAND from Column G (G2), and generates multi-level Pivot tables with sales values in <strong>Lac (100,000 = 1.00)</strong>.
             </p>
           </div>
+          
+          
+          
+          
 
-          <div className="flex flex-wrap items-center gap-2 text-xs shrink-0">
-            <div className="flex items-center space-x-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span className="text-slate-300 font-medium">Col G: BRAND</span>
-            </div>
-            <div className="flex items-center space-x-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
-              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-              <span className="text-slate-300 font-medium">10,000 = 0.10 Lac</span>
-            </div>
-          </div>
+          <div className="flex items-center space-x-3 text-xs shrink-0">
+  <div className="flex items-start space-x-2 bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700">
+    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 mt-1.5"></span>
+
+    <div className="text-slate-300 font-medium leading-relaxed">
+      <div>
+        Developed by{" "}
+        <a
+          href="https://fb.com/salim.naogaon"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-emerald-400 hover:text-emerald-300 hover:underline transition-colors"
+        >
+          Salim
+        </a>
+        {" "}
+      </div>
+      <div>SO, Sun Pharmaceuticals EZ Ltd.</div>
+      <div>HQ - ENGLISH ROAD-AZU-DHAKA</div>
+      <div>Mail - mdsalim.hossain1@sunpharma.com</div>
+      <div>Mobile - 01737462871</div>
+    </div>
+  </div>
+</div>
+          
+          
+          
+          
+          
+          
+          
         </div>
       </div>
 
@@ -178,6 +203,10 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
 
       {/* Upload Cards Grid */}
       <div className={`grid grid-cols-1 ${isCompareMode ? 'lg:grid-cols-3 gap-5' : 'md:grid-cols-2 gap-6'}`}>
+      
+      
+      
+      
         
         {/* Card 1: Sales Data File */}
         <div
@@ -209,10 +238,10 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
 
           <div className="mt-3.5">
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-              1. {isCompareMode ? 'Current Month Sales' : 'Sales Data File'}
+              1. {isCompareMode ? 'Current Month Sales' : 'Select Sales Data File from Data Centrebd'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Multi-Sheet: <strong>Sheet 4</strong> (Product Sales) & <strong>Sheet 2</strong> (Customer Sales)
+              শর্ত: <strong>Sun Mail এর Data Centrebd এর সেলস রিপোর্ট ফাইল আপলোড করতে হবে।</strong>
             </p>
 
             <div className="my-3 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs space-y-1 text-slate-600 dark:text-slate-300">
@@ -273,6 +302,9 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
           </div>
         </div>
 
+
+
+
         {/* Card 2: Chemist List File */}
         <div
           id="upload-card-chemist"
@@ -303,10 +335,10 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
 
           <div className="mt-3.5">
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-              2. Chemist List File
+              2. Chemist List File from RSM Sir
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Sheet: <strong>DHK-MYN-KH</strong> (Chemist Master)
+              শর্ত: <strong>RSM Sir এর দেওয়া নির্দিষ্ট কেমিস্ট ফাইল আপলোড করতে হবে।</strong>
             </p>
 
             <div className="my-3 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs space-y-1 text-slate-600 dark:text-slate-300">
@@ -366,6 +398,11 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
             )}
           </div>
         </div>
+        
+        
+        
+        
+        
 
         {/* Card 3: Last Month Sales File (Conditional on isCompareMode) */}
         {isCompareMode && (
@@ -398,20 +435,18 @@ export const FileUploadCards: React.FC<FileUploadCardsProps> = ({
 
             <div className="mt-3.5">
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-                3. Last Month Sales File
+                3. Last Month Sales File From Data Centrebd.
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Same format as Sales file • Reads <strong>Sheet 2 (HQ-Customer Sales)</strong>
+                Same format as Sales data file from data centrebd• Reads <strong>Sheet 2 (HQ-Customer Sales)</strong>
               </p>
 
               <div className="my-3 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs space-y-1 text-slate-600 dark:text-slate-300">
                 <div className="flex items-center space-x-1.5 font-medium text-slate-700 dark:text-slate-200">
                   <Info className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Sheet 2 (HQ-Customer Sales) 10 Required Columns:</span>
+                  <span>Sheet 2 (HQ-Customer Sales):</span>
                 </div>
-                <div className="pl-5 text-[10px] font-mono text-slate-500 dark:text-slate-400 leading-relaxed">
-                  HQ_CODE • HQ_NAME • CUST_CODE • MHL_CUST_ID • MHL_CUST_NAME • PRODUCT_COUNT • EXP_QTY_BOX • EXP_VALUE • SALES_QTY_BOX • SALES_VALUE
-                </div>
+                
                 <div className="pl-5 text-[11px] text-rose-600 dark:text-rose-400 font-semibold pt-0.5">
                   • <strong>Deficit:</strong> Current - Last (Negative in red text)
                 </div>
