@@ -28,10 +28,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm' # bun ব্যবহার করলে সে অনুযায়ী পরিবর্তন করতে পারেন
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build project
         run: npm run build
@@ -42,7 +41,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist' # পুরো প্রজেক্টের বদলে build ফোল্ডার dist আপলোড হবে
+          path: './dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
