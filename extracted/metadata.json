@@ -1,0 +1,6 @@
+{
+  "name": "Sales Data Analysis & Pivot Workbench",
+  "description": "Excel Sales Data Analysis and Chemist List mapping with automated FLM/HQ VLOOKUP enrichment, dynamic multi-level pivot tables, and consolidated export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
