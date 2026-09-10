@@ -80,7 +80,7 @@ export const SalimProfileCard: React.FC = () => {
                     Md. Salim Hossain
                   </h3>
                   <p className="text-xs sm:text-sm font-medium text-cyan-600 dark:text-cyan-400 mt-0.5">
-                    SO, Sun Pharmaceuticals EZ Ltd.
+                    Sun Pharmaceuticals EZ Ltd.
                   </p>
                 </div>
               </div>
